@@ -1,0 +1,202 @@
+//! Storage change notifications (strict synchronization).
+//!
+//! `NmsEvent` / `NmsEventList` per REST-NMS §5.3.2.25 / §5.3.2.26, used by the
+//! subscription/notification mechanism that strict synchronization relies on
+//! (spec §5.5, §6.3.2). The `restartToken` applies to the box as a whole
+//! (REST-NMS §5.1.4.3); `lastModSeq` handles reordering/duplication
+//! (REST-NMS §5.1.4.4); `index` handles loss (REST-NMS §5.1.4.5).
+
+use serde::{Deserialize, Serialize};
+
+use super::attribute::AttributeList;
+use super::flags::FlagList;
+use super::imdn::ImdnList;
+
+/// `Link` — `common:Link` ([REST_NetAPI_Common]); `rel` values "folder" and
+/// "nmsSubscription" are defined by REST-NMS §5.3.4.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Link {
+    pub href: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rel: Option<String>,
+}
+
+/// An object that has been deleted or expired — REST-NMS §5.3.2.27.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeletedObject {
+    #[serde(rename = "resourceURL")]
+    pub resource_url: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attributes: Option<AttributeList>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "super::de_u64_or_str"
+    )]
+    pub last_mod_seq: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub correlation_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub correlation_tag: Option<String>,
+}
+
+/// A folder that has been deleted or expired — REST-NMS §5.3.2.28.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeletedFolder {
+    #[serde(rename = "resourceURL")]
+    pub resource_url: String,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "super::de_u64_or_str"
+    )]
+    pub last_mod_seq: Option<u64>,
+}
+
+/// A new or changed object — REST-NMS §5.3.2.29. Object creation is reported
+/// with a `changedObject` event (REST-NMS §5.3.2.25).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChangedObject {
+    pub parent_folder: String,
+    pub flags: FlagList,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub imdns: Option<ImdnList>,
+    #[serde(rename = "resourceURL")]
+    pub resource_url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attributes: Option<AttributeList>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "super::de_u64_or_str"
+    )]
+    pub last_mod_seq: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub correlation_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub correlation_tag: Option<String>,
+}
+
+/// A new or changed folder — REST-NMS §5.3.2.30.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChangedFolder {
+    pub parent_folder: String,
+    #[serde(rename = "resourceURL")]
+    pub resource_url: String,
+    pub name: String,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "super::de_u64_or_str"
+    )]
+    pub last_mod_seq: Option<u64>,
+}
+
+/// Box reset — REST-NMS §5.3.2.31 (empty type; the client MUST re-run a
+/// first-time sync, REST-NMS §5.1.4.2.1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ResetBox;
+
+/// `NmsEvent` — REST-NMS §5.3.2.25. XSD "choice": exactly one variant.
+/// Serialized as an externally tagged object, e.g. `{"changedObject": {...}}`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NmsEvent {
+    #[serde(rename = "deletedObject")]
+    DeletedObject(DeletedObject),
+    #[serde(rename = "deletedFolder")]
+    DeletedFolder(DeletedFolder),
+    #[serde(rename = "expiredObject")]
+    ExpiredObject(DeletedObject),
+    #[serde(rename = "expiredFolder")]
+    ExpiredFolder(DeletedFolder),
+    #[serde(rename = "changedObject")]
+    ChangedObject(ChangedObject),
+    #[serde(rename = "changedFolder")]
+    ChangedFolder(ChangedFolder),
+    #[serde(rename = "resetBox")]
+    ResetBox(ResetBox),
+}
+
+/// `NmsEventList` — REST-NMS §5.3.2.26 (JSON root element `nmsEventList`),
+/// body of notification requests (spec §7.3.1.2).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct NmsEventList {
+    #[serde(default, deserialize_with = "super::one_or_many")]
+    pub nms_event: Vec<NmsEvent>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub callback_data: Option<String>,
+    /// Index of this notification list in the subscription (REST-NMS §5.1.4.5).
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "super::de_u64_or_str"
+    )]
+    pub index: Option<u64>,
+    /// Restart token representing the point after the notified change(s)
+    /// (REST-NMS §5.1.4.3).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub restart_token: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub link: Option<Vec<Link>>,
+}
+
+/// Root element `nmsEventList` wrapping an [`NmsEventList`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NmsEventListEnvelope {
+    pub nms_event_list: NmsEventList,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn nms_event_choice_serializes_as_external_tag() {
+        // REST-NMS §5.3.2.25 XSD choice -> {"changedObject": {...}}.
+        let ev = NmsEvent::ChangedObject(ChangedObject {
+            parent_folder: "http://s/folders/f1".into(),
+            flags: FlagList::new(),
+            imdns: None,
+            resource_url: "http://s/objects/o1".into(),
+            attributes: None,
+            last_mod_seq: Some(9),
+            correlation_id: None,
+            correlation_tag: None,
+        });
+        let v = serde_json::to_value(&ev).unwrap();
+        assert!(v.get("changedObject").is_some());
+        let back: NmsEvent = serde_json::from_value(v).unwrap();
+        assert_eq!(back, ev);
+    }
+
+    #[test]
+    fn nms_event_list_json_round_trip() {
+        let v = serde_json::json!({"nmsEventList": {
+            "nmsEvent": [
+                {"changedObject": {
+                    "parentFolder": "http://s/folders/f1",
+                    "flags": {"flag": ["\\Seen"]},
+                    "resourceURL": "http://s/objects/o1",
+                    "lastModSeq": 9
+                }},
+                {"deletedFolder": {"resourceURL": "http://s/folders/f2", "lastModSeq": 10}}
+            ],
+            "index": 3,
+            "restartToken": "rt-abc"
+        }});
+        let env: NmsEventListEnvelope = serde_json::from_value(v).unwrap();
+        assert_eq!(env.nms_event_list.nms_event.len(), 2);
+        assert_eq!(env.nms_event_list.index, Some(3));
+        assert_eq!(env.nms_event_list.restart_token.as_deref(), Some("rt-abc"));
+        let v1 = serde_json::to_value(&env).unwrap();
+        let env2: NmsEventListEnvelope = serde_json::from_value(v1.clone()).unwrap();
+        assert_eq!(serde_json::to_value(&env2).unwrap(), v1);
+    }
+}
