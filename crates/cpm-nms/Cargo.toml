@@ -1,0 +1,26 @@
+[package]
+name = "cpm-nms"
+description = "RESTful client for OMA REST_NetAPI_NMS as bound to CPM by OMA-TS-CPM_Message_Storage_Using_RESTFul_API-V1_0-20200907-C."
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+cpm-core = { path = "../cpm-core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+url = { workspace = true }
+tokio = { workspace = true }
+reqwest = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+wiremock = { workspace = true }
+
+[lints]
+workspace = true

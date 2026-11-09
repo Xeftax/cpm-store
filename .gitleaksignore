@@ -1,0 +1,5 @@
+# managed by dockyard — generated whole from `[gitleaks] ignore` in dockyard.toml, never edited by hand.
+#
+# One gitleaks fingerprint per line, as gitleaks prints it with a finding:
+# `<commit>:<path>:<rule>:<line>`. Declare a known false positive in `dockyard.toml`; a line
+# added here is removed on the next sync.

@@ -1,0 +1,45 @@
+# The release: what a push to main builds, tags and deploys, as the `[deploy]` targets of
+# this repo's `dockyard.toml` say. This file is only the triggers, the guard and the grant;
+# the graph is `_release.yml`, called by reference, and a target takes part by carrying
+# `auto = true` (deploy it) or `release_build = true` (build its image only). A repo with
+# neither releases nothing, and this workflow is a no-op for it. README.md, "Deploying", is
+# the reference.
+#
+# `workflow_dispatch` replays what a push would have done for the ref's HEAD. It exists
+# because a merge-queue merge does not reliably emit the `push` event on main. Both paths
+# are guarded to `refs/heads/main`: a dispatch from another branch builds nothing, tags
+# nothing and deploys nothing.
+#
+# Production is never deployed from GitHub Actions: the graph refuses a production
+# environment id, so no target can name one.
+#
+# `contents: write` is for the git tag a build leg lays; nothing here pushes a branch.
+# `cancel-in-progress: false`, stated rather than inherited: cancelling a release half-way
+# leaves an image pushed and a target not deployed. One run and one pending run per ref.
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  release:
+    if: ${{ github.ref == 'refs/heads/main' }}
+    uses: Tetrixx-SG/dock-yard/.github/workflows/_release.yml@main
+    permissions:
+      id-token: write
+      contents: write
+    secrets: inherit
+
+  # A repo adds its own jobs, a notification or a smoke test with `needs: [release]`, inside
+  # a `dockyard:keep` region it opens under whatever name it chooses: a region only ever
+  # adds, is never shipped by dockyard and is never overwritten by a later sync.

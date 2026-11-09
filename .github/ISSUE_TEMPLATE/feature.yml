@@ -1,0 +1,60 @@
+name: Feature
+description: A new capability or user-facing functionality
+title: "<descriptive title — no Feature: prefix>"
+type: Feature
+labels: []
+body:
+  - type: textarea
+    id: parent
+    attributes:
+      label: Parent
+      description: "Parent epic if applicable (e.g., `Parent: #123`)."
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What does this feature do? Who is it for?
+    validations:
+      required: true
+  - type: textarea
+    id: why_now
+    attributes:
+      label: Why now
+      description: What triggers this now? What does it unblock?
+  - type: textarea
+    id: implementation_plan
+    attributes:
+      label: Implementation plan (Plan Review gate)
+      description: |
+        Filled progressively — a light **Need** at filing, the full **Strategy / Impact** when you pick the ticket up and move it to `Plan Review`. See `docs/direction.md` § "Implementation plans (the Plan Review gate)". Skip entirely for trivial work that goes straight to `Code Review`.
+      value: |
+        ## Context
+        <2–3 lines: where this sits, what triggers it now>
+
+        ## Need
+        <the problem as a desired outcome — not a solution>
+
+        ## Strategy
+        - ✅ **Do**: <chosen approach, key points>
+        - ❌ **Don't**: <roads not taken, and why>
+
+        ## Impact
+        <file/folder tree touched>
+
+        ## Annex (optional)
+        <UI mockup / diagram / schema sketch — only if it helps the reviewer decide>
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Checklist — what does "done" look like?
+      value: |
+        - [ ]
+        - [ ]
+    validations:
+      required: true
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Design docs, related PRs, prior art.

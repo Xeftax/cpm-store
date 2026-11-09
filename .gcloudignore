@@ -1,0 +1,48 @@
+# Managed by dockyard — edit upstream, not here, except inside a keep region you open.
+#
+# Same groups as .dockerignore, and deliberately not the same file: gcloud reads this one
+# for `gcloud app deploy` and `gcloud functions deploy`, and it has one behaviour
+# .dockerignore does not — the presence of this file suppresses gcloud's default
+# .gitignore-derived exclusions entirely, so anything meant to stay out has to be named
+# here even when .gitignore already covers it.
+#
+# Unlike .dockerignore, no pattern here is `**/`-prefixed: gcloud parses this file with
+# .gitignore syntax, where a slash-free pattern already matches at any depth — adding
+# `**/` would be redundant, not wrong, but it would also make the two files look like
+# they need different content when they do not.
+#
+# This file's whole body below is
+# rendered from exclude.toml's [groups] table by `dockyard sync`, the same renderer
+# and the same groups .dockerignore draws on: edit a group there, not a pattern here.
+
+# build-outputs
+dist/
+build/
+target/
+
+# version-control
+.git/
+.hg/
+.svn/
+.bzr/
+
+# repo-metadata
+.gitignore
+tests/
+docs/
+*.md
+!README.md
+
+# secrets
+.env
+.env.*
+!.env.example
+
+# agent-config-in-build-context
+.claude/
+.vibe/
+
+# editor-os
+.DS_Store
+.vscode/
+.idea/

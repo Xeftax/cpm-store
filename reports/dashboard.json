@@ -1,0 +1,76 @@
+{
+  "generated_at": "2026-11-08T13:40:50.141957+00:00",
+  "project_filter": "cpm",
+  "sessions": [
+    {
+      "id": "075d2779-1722-f882-296b-21744778b018",
+      "short": "075d2779",
+      "cwd": "/Users/quentin/Documents/perso/cpm_rs",
+      "start": "2026-11-08T12:18:32.013000+00:00",
+      "end": "2026-11-08T12:20:47.063000+00:00",
+      "elapsed_s": 135,
+      "live": false,
+      "lock_since": null,
+      "calls": 21,
+      "usage": {
+        "input_tokens": 684234,
+        "output_tokens": 15339,
+        "cached_input_tokens": 571904,
+        "reasoning_tokens": 4673,
+        "total_tokens": 699573
+      },
+      "ctx_now": 42750,
+      "ctx_max": 42750,
+      "last_activity": 1794140525.6797402,
+      "cost_est": 0.16068948000000002,
+      "cost_stats": null,
+      "stats_total": null,
+      "model": {
+        "alias": "large",
+        "name": "mistral-large-4",
+        "display": "mistral-large-4",
+        "input_price": 0.7,
+        "output_price": 2.1,
+        "cached_input_price": 0.07,
+        "auto_compact_threshold": 200000,
+        "max_context_length": null,
+        "source": "local"
+      }
+    },
+    {
+      "id": "06df58af-9c43-8439-8ac1-1a9f9b857001",
+      "short": "06df58af",
+      "cwd": "/Users/quentin/Documents/perso/cpm_rs",
+      "start": "2026-11-08T12:22:11.306000+00:00",
+      "end": "2026-11-08T13:29:35.261000+00:00",
+      "elapsed_s": 4044,
+      "live": true,
+      "lock_since": "2026-11-08T12:22:11.264Z",
+      "calls": 21,
+      "usage": {
+        "input_tokens": 1349617,
+        "output_tokens": 42663,
+        "cached_input_tokens": 1136896,
+        "reasoning_tokens": 19907,
+        "total_tokens": 1392280
+      },
+      "ctx_now": 75613,
+      "ctx_max": 75613,
+      "last_activity": 1794144750.471432,
+      "cost_est": null,
+      "cost_stats": null,
+      "stats_total": null,
+      "model": {
+        "alias": "mistral-large-4-0-3",
+        "name": "mistral-large-4-0-3",
+        "display": "mistral-large-4-0-3",
+        "input_price": null,
+        "output_price": null,
+        "cached_input_price": null,
+        "auto_compact_threshold": 200000,
+        "max_context_length": null,
+        "source": "local"
+      }
+    }
+  ]
+}

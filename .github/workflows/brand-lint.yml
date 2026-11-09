@@ -1,0 +1,33 @@
+# Brand naming gate. The rules and the linter live in tetrixx-knowledge;
+# this file only says which repo to run them against and how hard to fail.
+#
+# Advisory for now: findings are reported, the PR is not blocked. A repo that
+# reports zero findings can go straight to blocking by passing
+# `advisory: false` — not by dropping the input, which leaves it advisory,
+# that being the reusable workflow's default. Starting advisory keeps one
+# rollout pattern across the estate (tetrixx-knowledge#344) rather than two.
+#
+# Tier-2 rules (product and company name casing) stay off until this repo
+# has a brand surface worth declaring in a .brandlint.json. Run repo-wide
+# they flag engineers writing to each other about systems, which is not
+# what the naming rule is aimed at.
+
+name: Brand lint
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  brand:
+    uses: Tetrixx-SG/tetrixx-knowledge/.github/workflows/reusable-brand-lint.yml@main
+    with:
+      # Advisory: findings reported, PR not blocked. This is also the
+      # reusable workflow's default since tetrixx-knowledge#351, but it is
+      # stated here so the repo's posture is readable without opening it.
+      advisory: true

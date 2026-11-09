@@ -1,0 +1,16 @@
+# mdformat configuration — managed by dockyard, edit upstream, not here.
+#
+# `exclude` is rendered from exclude.toml's [groups] table by dockyard.exclusions, same
+# as every other target's own exclusion key — edit a group there, not the array here.
+# Requires Python 3.13+ (mdformat itself refuses the key otherwise); every dockyard
+# Python repo already is.
+wrap = "keep"
+number = true
+end_of_line = "lf"
+exclude = [
+    "**/.git/**",
+    "**/.hg/**",
+    "**/.svn/**",
+    "**/.bzr/**",
+    "**/.claude/worktrees/**",
+]

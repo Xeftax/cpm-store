@@ -1,0 +1,93 @@
+{
+  "generated_at": "2026-11-08T13:25:37.011788+00:00",
+  "vibe_home": "/Users/quentin/.vibe",
+  "project_filter": "cpm",
+  "since": null,
+  "sessions": [
+    {
+      "session_id": "075d2779-1722-f882-296b-21744778b018",
+      "dir": "075d2779-1722-f882-296b-21744778b018",
+      "start": "2026-11-08T12:18:32.013000+00:00",
+      "duration_s": 135.1,
+      "cwd": "/Users/quentin/Documents/perso/cpm_rs",
+      "active_model_alias": "large",
+      "model_name": "large",
+      "provider": null,
+      "input_price": null,
+      "output_price": null,
+      "prompt_tokens": null,
+      "completion_tokens": null,
+      "cached_tokens": null,
+      "total_tokens": null,
+      "cost_usd": null
+    },
+    {
+      "session_id": "06df58af-9c43-8439-8ac1-1a9f9b857001",
+      "dir": "06df58af-9c43-8439-8ac1-1a9f9b857001",
+      "start": "2026-11-08T12:22:11.306000+00:00",
+      "duration_s": 3438.7,
+      "cwd": "/Users/quentin/Documents/perso/cpm_rs",
+      "active_model_alias": "mistral-large-4-0-3",
+      "model_name": "mistral-large-4-0-3",
+      "provider": null,
+      "input_price": null,
+      "output_price": null,
+      "prompt_tokens": null,
+      "completion_tokens": null,
+      "cached_tokens": null,
+      "total_tokens": null,
+      "cost_usd": null
+    }
+  ],
+  "per_model_llm_calls": {
+    "mistral-large-4-0-3": {
+      "input_tokens": 26775189,
+      "output_tokens": 175791,
+      "cached_input_tokens": 24011008,
+      "reasoning_tokens": 78079,
+      "total_tokens": 26950980,
+      "calls": 172
+    },
+    "large": {
+      "input_tokens": 918309,
+      "output_tokens": 16776,
+      "cached_input_tokens": 640256,
+      "reasoning_tokens": 5417,
+      "total_tokens": 935085,
+      "calls": 42
+    },
+    "unknown": {
+      "input_tokens": 4197420,
+      "output_tokens": 45383,
+      "cached_input_tokens": 3749888,
+      "reasoning_tokens": 1126,
+      "total_tokens": 4242803,
+      "calls": 134
+    },
+    "glm": {
+      "input_tokens": 28800,
+      "output_tokens": 9,
+      "cached_input_tokens": 14208,
+      "reasoning_tokens": 0,
+      "total_tokens": 28809,
+      "calls": 3
+    },
+    "glm-flash": {
+      "input_tokens": 28800,
+      "output_tokens": 9,
+      "cached_input_tokens": 0,
+      "reasoning_tokens": 0,
+      "total_tokens": 28809,
+      "calls": 3
+    }
+  },
+  "llm_calls_count": 354,
+  "totals": {
+    "sessions": 2,
+    "prompt_tokens": 0,
+    "completion_tokens": 0,
+    "cached_tokens": 0,
+    "total_tokens": 0,
+    "cost_usd": 0
+  }
+}

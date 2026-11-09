@@ -1,0 +1,18 @@
+[package]
+name = "cpm-ffi"
+description = "C API (cbindgen) of the CPM client library, consumed by liblinphone (C/C++)."
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+# cdylib/staticlib for linking into linphone-sdk, rlib for Rust tests.
+crate-type = ["cdylib", "staticlib", "rlib"]
+
+[dependencies]
+cpm-client = { path = "../cpm-client" }
+
+[lints]
+workspace = true

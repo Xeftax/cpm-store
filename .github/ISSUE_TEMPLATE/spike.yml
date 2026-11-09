@@ -1,0 +1,49 @@
+name: Spike
+description: Time-boxed investigation with an ADR or design note as deliverable
+title: "<question being investigated>"
+type: Task
+body:
+  - type: textarea
+    id: parent
+    attributes:
+      label: Parent
+      description: "Parent epic if applicable (e.g., `Parent: #123`)."
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: The decision or design question being investigated.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why this matters
+      description: Why is this decision needed now? What does it unblock?
+    validations:
+      required: true
+  - type: textarea
+    id: deliverable
+    attributes:
+      label: Deliverable
+      description: The concrete artifact this spike produces — ADR path, design note path, prototype, etc.
+      placeholder: "ADR `docs/adr/NNNN-<slug>.md` covering: ..."
+    validations:
+      required: true
+  - type: textarea
+    id: out
+    attributes:
+      label: Out of scope
+      description: What this spike will NOT decide or produce.
+  - type: input
+    id: timebox
+    attributes:
+      label: Time box
+      description: How long this spike should take before we stop (e.g. "3-5 days").
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        **After creating:** add it to this repo's project board and set `Kind=spike`, `Area=<...>`, `Prio=<...>` (or your board's equivalent fields).

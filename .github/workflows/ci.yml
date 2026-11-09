@@ -1,0 +1,228 @@
+# managed by dockyard — generated whole by `dockyard sync`, never edited by hand.
+#
+# One job per check this repo runs, as dockyard's packaged base declares them and this repo's
+# `dockyard.toml` overrides them, each calling `_check.yml`; then `CI Failure Report`,
+# which sums them into `CI Failure Report / CI Gate` — the one check to mark Required in
+# branch protection. A job of this repo's own is a check of its own: declare it as a
+# `[check.<id>]` table in `dockyard.toml`, never here. A `dockyard:keep` region in this
+# file is refused rather than kept.
+#
+# No workflow-level concurrency: a cron run on main would otherwise queue behind, or
+# cancel, a push run. Each check carries its own, in `_check.yml`.
+name: CI
+
+on:
+  pull_request:
+    branches: [ main ]
+  merge_group:
+  schedule:
+    - cron: '0 3 * * 1'
+    - cron: '0 4 * * 1'
+    - cron: '0 5 * * 1'
+  workflow_dispatch:
+    inputs:
+      check:
+        description: 'The check to run now, in its cron mode'
+        type: choice
+        required: true
+        options:
+          - gitleaks
+          - drift
+          - platform-drift
+          - claude-rules
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  lint-rust:
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
+    uses: Tetrixx-SG/dock-yard/.github/workflows/_check.yml@main
+    secrets:
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+    with:
+      id: 'lint-rust'
+      command: 'scripts/ci/lint-rust.sh'
+      setup: 'rust'
+      artifacts: 'clippy.txt'
+      on-pull-request: 'block'
+      on-merge-group: 'block'
+      on-push: 'off'
+      on-schedule: 'off'
+
+  test-rust:
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
+    uses: Tetrixx-SG/dock-yard/.github/workflows/_check.yml@main
+    secrets:
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+    with:
+      id: 'test-rust'
+      command: 'scripts/ci/test-rust.sh'
+      setup: 'rust'
+      on-pull-request: 'block'
+      on-merge-group: 'block'
+      on-push: 'off'
+      on-schedule: 'off'
+
+  build-rust:
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
+    uses: Tetrixx-SG/dock-yard/.github/workflows/_check.yml@main
+    secrets:
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+    with:
+      id: 'build-rust'
+      command: 'scripts/ci/build-rust.sh'
+      setup: 'rust'
+      on-pull-request: 'block'
+      on-merge-group: 'block'
+      on-push: 'off'
+      on-schedule: 'off'
+
+  security-rust:
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
+    uses: Tetrixx-SG/dock-yard/.github/workflows/_check.yml@main
+    secrets:
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+    with:
+      id: 'security-rust'
+      command: 'scripts/ci/security-rust.sh'
+      setup: 'rust'
+      artifacts: 'deny-report.txt'
+      on-pull-request: 'block'
+      on-merge-group: 'block'
+      on-push: 'off'
+      on-schedule: 'off'
+
+  msrv-rust:
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
+    uses: Tetrixx-SG/dock-yard/.github/workflows/_check.yml@main
+    secrets:
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+    with:
+      id: 'msrv-rust'
+      command: 'scripts/ci/msrv-rust.sh'
+      setup: 'rust'
+      on-pull-request: 'block'
+      on-merge-group: 'block'
+      on-push: 'off'
+      on-schedule: 'off'
+
+  gitleaks:
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' || github.event.schedule == '0 3 * * 1' || (github.event_name == 'workflow_dispatch' && inputs.check == 'gitleaks') }}
+    uses: Tetrixx-SG/dock-yard/.github/workflows/_check.yml@main
+    secrets:
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+    with:
+      id: 'gitleaks'
+      command: 'scripts/ci/secret-scan.sh'
+      setup: 'none'
+      artifacts: 'gitleaks-report.json'
+      title: 'security: gitleaks found a secret in the history'
+      on-pull-request: 'block'
+      on-merge-group: 'block'
+      on-push: 'off'
+      on-schedule: 'pr'
+      permission-contents: 'write'
+      permission-pull-requests: 'write'
+
+  filemap:
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
+    uses: Tetrixx-SG/dock-yard/.github/workflows/_check.yml@main
+    secrets:
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+    with:
+      id: 'filemap'
+      command: 'scripts/ci/filemap.sh'
+      setup: 'python-uv'
+      install-extras: '--frozen'
+      paths: 'docs/FILEMAP'
+      on-pull-request: 'commit'
+      on-merge-group: 'block'
+      on-push: 'off'
+      on-schedule: 'off'
+      permission-contents: 'write'
+
+  drift:
+    if: ${{ github.event.schedule == '0 3 * * 1' || (github.event_name == 'workflow_dispatch' && inputs.check == 'drift') }}
+    uses: Tetrixx-SG/dock-yard/.github/workflows/_check.yml@main
+    secrets:
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+    with:
+      id: 'drift'
+      command: 'scripts/ci/drift.sh'
+      setup: 'python-uv'
+      install-extras: '--frozen'
+      paths: '.'
+      source-repo: 'Tetrixx-SG/dock-yard'
+      title: 'chore: sync dockyard'
+      note: '**Read before merging.** `dockyard sync` overwrites everything outside a `dockyard:keep` region, and a region only ever adds. A file this repo needs to own is declined in `dockyard.toml`''s `decline` list rather than edited here. A file sync refuses as `diverged` fails the run and nothing is proposed until it is declined or taken with `dockyard sync --force`.'
+      on-pull-request: 'off'
+      on-merge-group: 'off'
+      on-push: 'off'
+      on-schedule: 'pr'
+      permission-contents: 'write'
+      permission-pull-requests: 'write'
+
+  skill-frontmatter:
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
+    uses: Tetrixx-SG/dock-yard/.github/workflows/_check.yml@main
+    secrets:
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+    with:
+      id: 'skill-frontmatter'
+      command: 'scripts/ci/check_skill_frontmatter.py'
+      setup: 'none'
+      on-pull-request: 'block'
+      on-merge-group: 'block'
+      on-push: 'off'
+      on-schedule: 'off'
+
+  platform-drift:
+    if: ${{ github.event.schedule == '0 4 * * 1' || (github.event_name == 'workflow_dispatch' && inputs.check == 'platform-drift') }}
+    uses: Tetrixx-SG/dock-yard/.github/workflows/_check.yml@main
+    secrets:
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+    with:
+      id: 'platform-drift'
+      command: '.github/scripts/platform_check.py .'
+      setup: 'python-uv'
+      install-extras: '--frozen'
+      title: 'platform: declared state has drifted'
+      note: 'None of this is a file, so no sync can fix it. Change the platform, if the declaration is what the repo means, or the declaration, if the platform is. A required check that nothing declares is usually a stale name left by a renamed job, and it blocks every merge forever rather than failing it.'
+      on-pull-request: 'off'
+      on-merge-group: 'off'
+      on-push: 'off'
+      on-schedule: 'pr'
+      permission-administration: 'read'
+      permission-contents: 'write'
+      permission-pull-requests: 'write'
+
+  claude-rules:
+    if: ${{ github.event.schedule == '0 5 * * 1' || (github.event_name == 'workflow_dispatch' && inputs.check == 'claude-rules') }}
+    uses: Tetrixx-SG/dock-yard/.github/workflows/_check.yml@main
+    secrets:
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+    with:
+      id: 'claude-rules'
+      command: 'scripts/ci/claude-rules-sync.sh'
+      setup: 'none'
+      paths: '.claude/rules'
+      source-repo: 'Tetrixx-SG/connected-intelligence'
+      title: 'chore: sync .claude/rules with connected-intelligence'
+      note: '**If the diff deletes guidance you want to keep, do not merge:** promote it into the plugin first, then let the next run converge.'
+      on-pull-request: 'off'
+      on-merge-group: 'off'
+      on-push: 'off'
+      on-schedule: 'pr'
+      permission-contents: 'write'
+      permission-pull-requests: 'write'
+
+  failure-report:
+    name: CI Failure Report
+    needs: [ lint-rust, test-rust, build-rust, security-rust, msrv-rust, gitleaks, filemap, drift, skill-frontmatter, platform-drift, claude-rules ]
+    if: always()
+    uses: Tetrixx-SG/dock-yard/.github/workflows/_gate.yml@main
+    with:
+      needs: ${{ toJSON(needs) }}
+      modes: '{"lint-rust":{"pull_request":"block","merge_group":"block","push":"off","cron":"off","schedule":""},"test-rust":{"pull_request":"block","merge_group":"block","push":"off","cron":"off","schedule":""},"build-rust":{"pull_request":"block","merge_group":"block","push":"off","cron":"off","schedule":""},"security-rust":{"pull_request":"block","merge_group":"block","push":"off","cron":"off","schedule":""},"msrv-rust":{"pull_request":"block","merge_group":"block","push":"off","cron":"off","schedule":""},"gitleaks":{"pull_request":"block","merge_group":"block","push":"off","cron":"pr","schedule":"0 3 * * 1"},"filemap":{"pull_request":"commit","merge_group":"block","push":"off","cron":"off","schedule":""},"drift":{"pull_request":"off","merge_group":"off","push":"off","cron":"pr","schedule":"0 3 * * 1"},"skill-frontmatter":{"pull_request":"block","merge_group":"block","push":"off","cron":"off","schedule":""},"platform-drift":{"pull_request":"off","merge_group":"off","push":"off","cron":"pr","schedule":"0 4 * * 1"},"claude-rules":{"pull_request":"off","merge_group":"off","push":"off","cron":"pr","schedule":"0 5 * * 1"}}'

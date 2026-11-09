@@ -1,0 +1,11 @@
+# cpm-store's declaration, read on top of dockyard.base.toml: only what differs.
+
+# A Rust workspace, driven from Mistral Vibe (no .claude/ here, so the harness is declared
+# rather than detected).
+[dockyard]
+languages = ["rust"]
+harnesses = ["vibe"]
+
+[[dependabot]]
+ecosystem = "cargo"
+group = "rust"

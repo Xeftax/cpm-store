@@ -1,0 +1,7 @@
+# managed by dockyard — generated whole from `[trivy] ignore` in dockyard.toml, never edited by hand.
+#
+# The image-scan findings this repo accepts, read by `_scan-image.yml`. Each entry carries a
+# statement and an `expired_at`: past that date trivy applies it no more and the finding
+# blocks again. Declare one in `dockyard.toml`; an entry added here is removed on the next
+# sync.
+vulnerabilities: []

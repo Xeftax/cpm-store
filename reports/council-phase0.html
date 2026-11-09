@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Council phase 0 — clashes &amp; blind spots — cpm-store</title>
+<style>
+body{font-family:-apple-system,Menlo,monospace;background:#0f1117;color:#e6e6e6;margin:0;padding:2em;max-width:1100px}
+h1{font-size:1.4em} h2{font-size:1.1em;color:#8ab4f8;margin-top:2em;border-bottom:1px solid #23262f;padding-bottom:.3em}
+h3{font-size:1em;margin:1.2em 0 .4em}
+.dim{color:#8b949e} code{background:#161b22;padding:1px 5px;border-radius:4px;font-size:.9em}
+.flow{display:flex;gap:.6em;flex-wrap:wrap;margin:1em 0}
+.step{background:#161b22;border:1px solid #23262f;border-radius:8px;padding:.6em 1em}
+.step b{color:#8ab4f8}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1em}
+.card{background:#161b22;border:1px solid #23262f;border-radius:8px;padding:1em}
+.card h4{margin:.1em 0 .5em;font-size:.95em}
+.agree{border-left:4px solid #7ee787}
+.clash{border-left:4px solid #e3b341}
+.blind{border-left:4px solid #f47067}
+.chip{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.75em;font-weight:bold;margin:2px 2px 2px 0}
+.g{background:#12331c;color:#7ee787}.a{background:#3a2f10;color:#e3b341}.r{background:#3d1d20;color:#f47067}.n{background:#23262f;color:#8b949e}.b{background:#1c2b45;color:#8ab4f8}
+table{border-collapse:collapse;width:100%;font-size:.85em;margin:.5em 0}
+th,td{border:1px solid #23262f;padding:6px 10px;text-align:left;vertical-align:top}
+th{background:#161b22;color:#8ab4f8}
+td.c{text-align:center}
+.bar{height:8px;border-radius:4px;background:#23262f;overflow:hidden;margin-top:4px}
+.bar>div{height:8px;background:#8ab4f8}
+.verdict{background:#161b22;border:1px solid #8ab4f8;border-radius:8px;padding:1.2em;margin-top:1em}
+.verdict h3{margin-top:0;color:#8ab4f8}
+.first{background:#12331c;border:1px solid #7ee787;border-radius:8px;padding:1em;margin-top:1em}
+ul{margin:.3em 0 .3em 1.2em;padding:0} li{margin:.25em 0}
+</style>
+</head>
+<body>
+
+<h1>LLM Council — revue de la phase 0 (cpm-store)</h1>
+<p class="dim">2026-11-08 · skill <code>llm-council</code> (Karpathy) · 5 conseillers en parallèle →
+peer review anonymisé (A–E) → synthèse chairman · transcription complète :
+<code>reports/council-phase0-transcript.md</code> ·
+question : valider les ADR D1–D6 (REST d'abord, Apache-2.0, stateless, workspace, FFI cbindgen, JSON only)
+pour un client OMA CPM destiné à Linphone.</p>
+
+<div class="flow">
+  <div class="step"><b>1. Frame</b><br>question + contexte repo (AGENTS.md, architecture, specs…)</div>
+  <div class="step"><b>2. 5 conseillers</b><br>Contrarian · First Principles · Expansionist · Outsider · Executor</div>
+  <div class="step"><b>3. Peer review</b><br>5 relecteurs, réponses anonymisées A–E, 3 questions</div>
+  <div class="step"><b>4. Chairman</b><br>verdict : accords / clashes / blind spots / reco</div>
+</div>
+
+<h2>1 · Where the council agrees (validé, haute confiance)</h2>
+<div class="cards">
+  <div class="card agree"><h4>D2 — Apache-2.0</h4>Validé par les 5 sans réserve. Compatible GPLv3/AGPL de linphone-sdk.</div>
+  <div class="card agree"><h4>D4 — workspace crates/*, MSRV 1.85, édition 2024</h4>Validé, avec une condition : la CI linphone-sdk (vieux builders NDK) doit accepter Rust 1.85.</div>
+  <div class="card agree"><h4>D6 — JSON only</h4>Validé : le SCR rend le JSON Mandatory, le XML Optional.</div>
+  <div class="card agree"><h4>D5 — FFI C (cbindgen)</h4>Tient, mais le contrat FFI s'écrit avant la phase 6 : tokio global (<code>OnceLock</code>), vtable C explicite, <code>catch_unwind</code> à la frontière.</div>
+  <div class="card agree"><h4>D3 — direction</h4>L'état de synchro (<code>restartToken</code>/<code>lastModSeq</code>) entre dans le contrat : <code>SyncState</code> sérialisable stocké par l'hôte ; les traits portent les messages.</div>
+  <div class="card agree"><h4>Specs</h4><code>REST_NetAPI_NMS</code> embarquée + QA'ée avant la phase 2 (fait le 2026-11-08) ; annexes B/C–H extraites du PDF (<code>pdftotext</code>) pour les golden tests.</div>
+  <div class="card agree"><h4>Publication</h4>Aucun dérivé OMA publié avant vérification des droits de redistribution.</div>
+</div>
+
+<h2>2 · Where the council clashes (les vrais désaccords)</h2>
+
+<table>
+<tr><th>Sujet</th><th>Contrarian</th><th>First Principles</th><th>Expansionist</th><th>Outsider</th><th>Executor</th></tr>
+<tr>
+  <td><b>D1 — REST d'abord ou IMAP ?</b></td>
+  <td class="c"><span class="chip r">INVERSE</span>risque fatal : aucun serveur REST NMS démontré, spec non embarquée → endpoints hallucinés</td>
+  <td class="c"><span class="chip a">CONDITION</span>valide si spec embarquée + critère d'interop nommé (phases 2/3)</td>
+  <td class="c"><span class="chip a">VALIDE+</span>mais IMAP = plan B engagé, core binding-agnostic dès la phase 1</td>
+  <td class="c"><span class="chip a">CONDITION</span>acceptable pour backup Linphone ; garder IMAP comme vrai plan B</td>
+  <td class="c"><span class="chip g">VALIDE</span>REST mockable (wiremock), IMAP = parser de protocole en plus</td>
+</tr>
+<tr>
+  <td><b>Publication publique</b> (crates.io, fixtures golden publiques)</td>
+  <td class="c"><span class="chip r">BLOQUE</span>droits de redistribution OMA non vérifiés</td>
+  <td class="c"><span class="chip r">BLOQUE</span>vérifier la redistribution avant publication</td>
+  <td class="c"><span class="chip g">PUBLIE</span>dès que stable + crate test-data publique</td>
+  <td class="c"><span class="chip r">BLOQUE</span>QA + droits OMA d'abord</td>
+  <td class="c"><span class="chip n">—</span>non traité</td>
+</tr>
+<tr>
+  <td><b>D3 — qui possède l'état de synchro ?</b></td>
+  <td class="c"><span class="chip a">MÉMOIRE</span>dans cpm-client + stockage feature-gated</td>
+  <td class="c"><span class="chip b">BLOB HÔTE</span><code>SyncState</code> JSON, 1 clé SQLite chez Linphone</td>
+  <td class="c"><span class="chip b">TRAITS</span>+ crate optionnel impl. de référence</td>
+  <td class="c"><span class="chip b">TRAITS</span>contrat inclut tokens de synchro</td>
+  <td class="c"><span class="chip b">TRAITS</span>dans cpm-core dès la phase 1</td>
+</tr>
+</table>
+<p class="dim">Lecture : D1 est le seul vrai clash (1 "inverse" contre 4 "valide sous condition") — la condition
+suspensive du verdict le désamorce. D3 : direction commune (l'état de synchro entre dans le contrat), propriétaire
+exact à trancher. Publication : 3 bloque / 1 publie / 1 muet → le chairman bloque.</p>
+
+<h2>3 · Blind spots (ce que seule la peer review a vu)</h2>
+<div class="cards">
+  <div class="card blind"><h4>Juridique : Apache-2.0 ↔ AGPLv3 au linkage</h4>
+    <span class="chip r">0/5 conseillers</span><span class="chip a">3/5 reviews</span>
+    <div class="bar"><div style="width:60%"></div></div>
+    Personne n'a analysé D2 face au host GPLv3/AGPL : combined work, clause brevet, §13 AGPL (obligations de
+    source), versioning de l'ABI C. <b>Action</b> : faire valider par un juriste avant toute intégration linphone-sdk.</div>
+  <div class="card blind"><h4>Chiffrement du backup (E2E, garde des clés, GDPR serveur)</h4>
+    <span class="chip r">0/5 conseillers</span><span class="chip a">2/5 reviews</span>
+    <div class="bar"><div style="width:40%"></div></div>
+    Backuper des conversations expose le contenu : E2E, custodia des clés, effacement côté serveur.
+    <b>Action</b> : documenter hors périmètre V1, à traiter avant toute mise en prod.</div>
+  <div class="card blind"><h4>Contraintes mobile réelles</h4>
+    <span class="chip a">1/5 conseillers</span><span class="chip a">2/5 reviews</span>
+    <div class="bar"><div style="width:40%"></div></div>
+    Taille binaire, mémoire, batterie ; CI NDK (vieux builders) vs MSRV 1.85 / édition 2024.
+    <b>Action</b> : check CI linphone-sdk en phase 6.</div>
+  <div class="card blind"><h4>Conflits multi-appareils + migration des historiques</h4>
+    <span class="chip r">0/5 conseillers</span><span class="chip a">1/5 reviews</span>
+    <div class="bar"><div style="width:20%"></div></div>
+    Sémantique de conflits et migration des conversations Linphone existantes : absentes des 5 réponses.
+    <b>Action</b> : scope phase 4 (sync).</div>
+  <div class="card blind"><h4>Risque produit : client sans serveur</h4>
+    <span class="chip a">1/5 conseillers</span><span class="chip a">2/5 reviews</span>
+    <div class="bar"><div style="width:40%"></div></div>
+    Sans serveur NMS déployé derrière, la lib reste un client orphelin.
+    <b>Action</b> : nommer la cible d'interop + qui pilote l'intégration Linphone.</div>
+</div>
+
+<h2>4 · Verdict du chairman</h2>
+<div class="verdict">
+<h3>The Recommendation</h3>
+<ul>
+<li>Valider <b>D2, D4, D6</b> telles quelles.</li>
+<li><b>D5</b> validé à condition d'écrire le contrat FFI avant la phase 6.</li>
+<li><b>D3</b> re-scopé : traits = messages + <code>SyncState</code> sérialisable stocké par l'hôte (1 clé), mapping objectId↔message dans <code>cpm-core</code> dès la phase 1.</li>
+<li><b>D1 validé sous condition suspensive</b> : REST d'abord tient si REST_NetAPI_NMS embarquée+QA'ée avec cible d'interop nommée avant la phase 2 — <b>sinon on inverse et l'IMAP devient le plan A</b>.</li>
+<li><b>Publication publique bloquée</b> jusqu'aux vérifications droits OMA + juridique AGPL.</li>
+<li>Golden tests annexes C–H <b>exclusivement depuis le PDF</b>.</li>
+</ul>
+</div>
+<div class="first">
+<h3 style="color:#7ee787">The One Thing to Do First</h3>
+<p>Embarquer <code>REST_NetAPI_NMS</code> dans le dépôt avec le même pipeline QA que les autres specs —
+4/5 conseillers convergent là-dessus. <b>Fait le 2026-11-08</b> (PDF officiel + conversion docling +
+QA 12/12 clés, voir <code>docs/specs/README.md</code>). Prochaine étape : nommer la cible d'interop réelle.</p>
+</div>
+
+<p class="dim">Sources : <code>reports/council-phase0-transcript.md</code> (réponses complètes des 5 conseillers,
+des 5 reviews et le verdict) · modèles : tous les subagents ont tourné sur le modèle de la session
+(<code>mistral-large-4-0-3</code>) ; les configs <code>~/.vibe/agents/council-*.toml</code> (5 modèles différents)
+seront actives après redémarrage de Vibe.</p>
+
+</body>
+</html>

@@ -1,0 +1,117 @@
+# The manual deploy entry point: pick an environment, a component and optionally a tag, and
+# the `[deploy]` targets in the repo's own `dockyard.toml` decide what that means. This file is
+# the shape of the entry point and one invariant half the estate was missing; the graph it
+# starts is `_deploy-target.yml`, called by reference, and the data it runs on is the repo's.
+#
+# Measured across the four repos that each rebuilt this (doc-station/deploy.yml 334 lines,
+# agent-forge/deploy.yml 215, tfin-ui/release.yml 96, tfin-backend/release.yml 206):
+#
+#   doc-station   concurrency: deploy-<env>-<component>, no cancel key
+#   agent-forge   concurrency: deploy-<env>, cancel-in-progress: false
+#   tfin-ui       no concurrency block at all
+#   tfin-backend  no concurrency block at all
+#
+# An earlier version of this comment said the two with no concurrency block are the two that
+# PATCH a Terraform Cloud variable and trigger an auto-apply. That was backwards, and the
+# review caught it: doc-station and agent-forge do the direct TFC PATCH + auto-apply, and
+# they are the two that already serialise. What tfin-ui and tfin-backend do instead is
+# check out `Tetrixx-SG/tetrixx-terraform`, edit a `.tf` file and `git push origin main`
+# against another repository's default branch (`update-terraform-workflow.yml:97`,
+# `release-terraform-workflow.yml:178`).
+#
+# The conclusion survives the correction and is arguably stronger: two dispatches against
+# one environment race on a shared file in a repository neither of them gates, and the loser
+# is a non-fast-forward or a silently clobbered variable. So `concurrency:` below is shared,
+# like the rest of this file: narrowing the environments to your own is normal (in
+# `dockyard.toml`; a repo needing one the base does not list declines this file), silently
+# opting out of serialising your deploys is not.
+#
+# The group is per environment AND component, doc-station's own scheme: its pipeline and
+# viewer deploys to one environment touch different things and need not wait for each
+# other, while two deploys of the same thing to the same place never run at once. A
+# push-to-main workflow calling the same graph uses the same group name for the same target,
+# so the automatic deploy and the manual one do not overlap. This is not an unbounded queue:
+# GitHub keeps one running and one pending run per group, and a newer run cancels the older
+# pending one.
+#
+# `cancel-in-progress: false` is stated rather than inherited. Cancelling a deploy
+# mid-flight leaves it half-applied — a pushed image with an un-PATCHed variable, or a
+# PATCHed variable with no apply — and a reader should not have to know GitHub's default
+# to know that was the intent.
+name: Manual Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      # `type: choice` and not `string`: it makes an unknown environment a rejection at
+      # dispatch time rather than a job that assumes a role and then fails looking one up.
+      # Both option lists are generated from `[deploy]` in `dockyard.toml`
+      # (`dockyard.deploy_inputs`). Narrow `environments` and declare `components` there,
+      # never here: the next `dockyard sync` replaces everything nested under each
+      # `options:` key regardless of what is written inside it. A repo declaring none gets
+      # every canonical environment id dockyard's packaged base lists, and never a `prod`
+      # one (a production deploy is never run from GitHub Actions), and the one component
+      # `default`. The component's `default:` is rendered too: it is the first declared
+      # component, since GitHub rejects a default that is not among the options.
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        type: choice
+        options:
+          - dev
+          - demo
+          - gxo-uat
+          - jnj-uat
+          - uct-uat
+          - valeo-uat
+      component:
+        description: 'What to deploy to it'
+        required: true
+        type: choice
+        default: default
+        options:
+          - default
+      version:
+        description: 'Image tag or version to deploy. Empty means the tag the target resolves by default (a build of this ref, or the latest release tag).'
+        required: false
+        type: string
+        default: ''
+
+concurrency:
+  group: deploy-${{ inputs.environment }}-${{ inputs.component }}
+  cancel-in-progress: false
+
+# What every deploy actually needs, shared. `id-token: write` is what every OIDC
+# assume-role requires. Unlike claude.yml there is no `permissions: {}` floor above this:
+# a dispatch is reachable only by someone who already has write access to the repo. A repo
+# needing more declines this file in `dockyard.toml`'s `decline` list and owns its own copy.
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  # The whole graph is one shared call, so there is no job here a repo can remove by
+  # editing this file: "nothing reaches a client environment unscanned" is the scan being
+  # inside the graph, ahead of every deploy job, and a repo needing to drop it declines this
+  # file in `dockyard.toml`'s `decline` list, an explicit statement rather than a quiet edit.
+  # What actually stops an unscanned image reaching a client environment is still level A:
+  # the graph's `Image Scan` being a REQUIRED CHECK on that GitHub Environment, which a file
+  # cannot declare (docs/architecture.md section 9).
+  #
+  # `secrets: inherit` because the `run-image` deployer names its secret in the targets
+  # file, and a secret chosen by name at run time cannot be declared in advance.
+  deploy:
+    uses: Tetrixx-SG/dock-yard/.github/workflows/_deploy-target.yml@main
+    permissions:
+      id-token: write
+      contents: read
+    with:
+      environment: ${{ inputs.environment }}
+      component: ${{ inputs.component }}
+      version: ${{ inputs.version }}
+    secrets: inherit
+
+  # A repo adds its own jobs, a notification, a smoke test with `needs: [deploy]`, inside
+  # a `dockyard:keep` region it opens under whatever name it chooses, anchored beside a line
+  # above this comment carries exactly once: a region only ever adds, it is never shipped by
+  # dockyard, and it is never overwritten by a later sync.

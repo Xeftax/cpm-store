@@ -1,0 +1,56 @@
+# Managed by dockyard — edit upstream, not here, except inside a keep region you open.
+#
+# Rendered from exclude.toml's [groups] table by `dockyard sync`, one heading per
+# group: edit a group there, not a pattern here. What a project alone needs ignored goes
+# in a `dockyard:keep` region of its own, which survives every sync.
+#
+# One group here is load-bearing beyond its own file. .gitleaks.toml allowlists
+# `.claude/worktrees/`, and that is only safe because this file ignores the same path: a
+# committable worktree would let the allowlist hide a real secret from the CI scan. Both
+# come from the one `local-state` group, so the coupling is structural rather than a
+# sentence someone has to remember.
+
+# build-outputs
+dist/
+build/
+target/
+
+# rust-lockfile
+/Cargo.lock
+
+# iac-state
+.terraform/
+
+# tool-reports
+gitleaks-report.json
+test-output.txt
+
+# rust-reports
+clippy.txt
+deny-report.txt
+
+# os-noise
+# dockyard:keep:start oma-specs-not-redistributable
+# OMA spec documents are (c) Open Mobile Alliance — internal/educational use only,
+# redistribution requires written OMA permission. Never commit the PDFs, their
+# markdown conversions, extracted images, or annex-derived test fixtures.
+# Fetch them locally with: python3 tools/specs_fetch.py --convert --qa
+# (see docs/specs/README.md, section "Publication")
+docs/specs/pdf/
+docs/specs/OMA-*.md
+docs/specs/*_artifacts/
+# dockyard:keep:end oma-specs-not-redistributable
+.DS_Store
+Thumbs.db
+._*
+
+# local-state
+*.pem
+*.key
+credentials.json
+.env
+*.env.local
+.claude/settings.local.json
+.claude/.last-stop-marker
+.claude/worktrees/
+.serena/

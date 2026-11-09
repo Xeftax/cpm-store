@@ -1,0 +1,45 @@
+# Gitleaks configuration - managed by dockyard
+# Do not edit manually - changes will be overwritten on sync
+#
+# Extends gitleaks' built-in detection rules. The allowlist below is structural
+# only: generated or vendored content (dependency lockfiles, caches, build
+# output), plus duplicate checkouts of content already scanned elsewhere
+# (Claude Code worktrees). It must never grow an entry that suppresses a secret
+# in first-party source — a real finding gets rotated and removed at the source,
+# not allowlisted here.
+#
+# A duplicate-checkout entry carries a condition the generated-content ones do
+# not: the path must also be gitignored in the consuming repo. This allowlist
+# applies to every gitleaks run, not just the local hook, so if the path is
+# committable the entry hides a real secret from the PR-diff and full-history
+# scans too. `.gitignore` carries that half via `exclude.toml`'s `local-state` group
+# (rendered into the committed `.gitignore` by `dockyard sync`, in exclusions.py, then
+# copied verbatim by sync), but a repo that edited its .gitignore outside the keep region
+# lost it on the next sync — check the path is actually ignored before relying on this.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Structural exclusions only — no finding is suppressed by content"
+paths = [
+    "(^|/)\\.git/",
+    "(^|/)\\.hg/",
+    "(^|/)\\.svn/",
+    "(^|/)\\.bzr/",
+    "(^|/)dist/",
+    "(^|/)build/",
+    "(^|/)target/",
+    "(^|/)\\.terraform/",
+    "(^|/)vendor/",
+    "(^|/)\\.claude/worktrees/",
+    "(^|/)\\.yarn/releases/",
+    "(^|/)uv\\.lock$",
+    "(^|/)poetry\\.lock$",
+    "(^|/)package\\-lock\\.json$",
+    "(^|/)pnpm\\-lock\\.yaml$",
+    "(^|/)yarn\\.lock$",
+    "(^|/)Cargo\\.lock$",
+    "(^|/)Gemfile\\.lock$",
+    "(^|/)composer\\.lock$",
+]

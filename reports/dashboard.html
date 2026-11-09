@@ -1,0 +1,21 @@
+<!doctype html><html><head><meta charset="utf-8">
+<meta http-equiv="refresh" content="5">
+<title>Vibe usage dashboard — cpm-store</title>
+<style>
+body{font-family:-apple-system,Menlo,monospace;background:#0f1117;color:#e6e6e6;margin:2em}
+h1{font-size:1.2em} h2{font-size:1em;color:#8ab4f8;margin-top:1.6em}
+table{border-collapse:collapse;font-size:0.85em} td,th{padding:3px 10px;border-bottom:1px solid #23262f;text-align:right}
+td.l,th.l{text-align:left} .live{color:#7ee787;font-weight:bold} .dim{color:#8b949e}
+.bar{font-family:monospace;color:#8ab4f8} .foot{margin-top:1.5em;color:#8b949e;font-size:0.85em}
+</style></head><body>
+<h1>Vibe usage dashboard — cpm-store</h1>
+<p class='dim'>généré le 2026-11-08 13:40:50 UTC — filtre cwd <code>cpm</code> — auto-refresh 5 s — 2 sessions, <b>1 active(s) maintenant</b> — seuil auto-compact global 200000</p>
+<h2>Actives maintenant (parallèles)</h2><table><tr><th class='l'>session</th><th class='l'>depuis</th><th>durée</th><th class='l'>modèle</th><th>contexte</th><th>seuil</th><th class='l'>utilisation</th><th class='l'>cwd</th></tr>
+<tr><td class='l live'>06df58af</td><td class='l'>08/11 12:22:11</td><td>1h07m24s</td><td class='l'>mistral-large-4-0-3 &rarr; mistral-large-4-0-3</td><td>75,613</td><td>200000</td><td class='l bar'>######------------ 37.8%</td><td class='l'>/Users/quentin/Documents/perso/cpm_rs</td></tr>
+</table>
+<h2>Sessions</h2><table><tr><th class='l'>session</th><th class='l'>début</th><th>durée</th><th>état</th><th class='l'>modèle</th><th>ctx now</th><th>ctx max</th><th>appels</th><th>total tok</th><th>coût est.</th><th class='l'>cwd</th></tr>
+<tr><td class='l'>075d2779</td><td class='l'>08/11 12:18:32</td><td>2m15s</td><td>fin</td><td class='l'>large &rarr; mistral-large-4</td><td>42,750</td><td>42,750</td><td>21</td><td>699,573</td><td>$0.1607</td><td class='l'>/Users/quentin/Documents/perso/cpm_rs</td></tr>
+<tr><td class='l'>06df58af</td><td class='l'>08/11 12:22:11</td><td>1h07m24s</td><td><span class='live'>LIVE</span></td><td class='l'>mistral-large-4-0-3 &rarr; mistral-large-4-0-3</td><td>75,613</td><td>75,613</td><td>21</td><td>1,392,280</td><td>n/a</td><td class='l'>/Users/quentin/Documents/perso/cpm_rs</td></tr>
+</table>
+<p class='foot'>TOTAUX : 2 sessions · 42 appels LLM · 2,091,853 tokens · coût estimé $0.1607<br>sources : ~/.vibe/logs/session (meta.json, journaux unified, locks active) + config.toml + experiment_eval_cache.json — aucune clé API lue</p>
+</body></html>

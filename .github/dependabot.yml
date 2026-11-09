@@ -1,0 +1,77 @@
+# managed by dockyard — generated whole by `dockyard sync` from dockyard.toml's
+# `[[dependabot]]`, never edited by hand. An ecosystem of this repo's own is a
+# `[[dependabot]]` entry, rendered after `github-actions` below; a `dockyard:keep` region
+# in this file is refused rather than kept.
+#
+# Scheduled version updates. Security ALERTS and security UPDATES are not configured here —
+# they run as an app, need no file, and are on for every repo in the estate that this token
+# can read (`automated-security-fixes` reports enabled and unpaused for seven of eight;
+# tetrixx-knowledge answers 404 because the token is not admin there). What this file buys
+# is the other half: scheduled version updates, the grouping, the interval and the
+# ecosystem list.
+#
+# Three things deliberately absent, each one a trap measured in a config that already
+# exists rather than read off a docs page:
+#
+#   - `target-branch` — silently disables SECURITY updates for the ecosystem it appears on.
+#     A version-update convenience that turns off the half that matters.
+#   - `directory: '/'`, singular — tfin-backend is a Yarn workspace with 15 package.json
+#     files and its config watches one. `directories`, plural, takes globs.
+#   - `open-pull-requests-limit: 0` — legitimate (it stops version updates while leaving
+#     security updates running) and completely silent. Not something to inherit by
+#     copy-paste.
+version: 2
+
+updates:
+  # Outside the keep region on purpose: every repo here runs Actions, and this is not an
+  # ecosystem a repo should be able to decline by editing a region meant for its languages.
+  # It is declared nowhere in the estate today, which is why four majors of
+  # `actions/checkout` coexist and why the v3 references — on the retired node16 runtime —
+  # will stop working with no warning. It is also 5.8's prerequisite: a SHA pin freezes a
+  # reference that nothing then refreshes, so this has to be watched before anything is
+  # pinned, or pinning makes the estate less safe rather than more.
+  #
+  # One grouped PR rather than one per action: these move together, they are reviewed
+  # together, and twenty separate PRs a week is how a bot gets muted. Majors stay out of
+  # every group: each is a migration of its own, still proposed, in a PR of its own.
+  #
+  # `/` alone means `.github/workflows/` and nothing else: a composite action's own
+  # `action.yml` is only read from a directory named here. Measured when the first grouped
+  # PR bumped every workflow to `actions/checkout@v7` and left `.github/actions/setup` on
+  # v4. The two globs cover `.github/actions/<name>/` and `.github/actions/<group>/<name>/`
+  # (`deploy/`, `expensive-suite/`); a glob matching nothing in a repo is simply empty.
+  - package-ecosystem: 'github-actions'
+    directories:
+      - '/'
+      - '/.github/actions/*'
+      - '/.github/actions/*/*'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+    groups:
+      github-actions:
+        patterns:
+          - '*'
+        update-types:
+          - 'minor'
+          - 'patch'
+    labels:
+      - 'dependencies'
+
+  - package-ecosystem: 'cargo'
+    directories:
+      - '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+    allow:
+      - dependency-type: 'all'
+    groups:
+      rust:
+        patterns:
+          - '*'
+        update-types:
+          - 'minor'
+          - 'patch'
+    labels:
+      - 'dependencies'

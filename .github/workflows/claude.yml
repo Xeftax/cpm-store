@@ -1,0 +1,68 @@
+# The `@claude` handler. The logic, the mention guard and the reason this pair is split
+# in two all live in dockyard's `_claude.yml` — read them there, not here.
+#
+# This file exists because two things cannot be shared. A reusable workflow's `on:` is
+# replaced by `workflow_call`, so the triggers have to sit in the repo they fire in; and
+# a called workflow's `permissions:` can only downgrade what the calling job granted,
+# never raise it, so the grant has to sit here too. That is the useful accident: the file
+# a repo's reviewers read is the file that decides how much an LLM reachable from a PR
+# comment can do.
+#
+# What the shipped default actually is, and what a repo does if it needs more, is stated
+# once, beside the grant itself, in the `claude:` job below.
+name: Claude Code
+
+# The four events all three measured repos fire on. A repo that does not want its agent
+# reachable from, say, a freshly opened issue removes that event here.
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+  issues:
+    types: [opened, assigned]
+
+# The floor, deliberately outside the region below, so that emptying that region cannot
+# widen the grant — and, measured, so that it zeroes it.
+#
+# **Verified on a real runner rather than read off a docs page**, because the documentation
+# does not settle it: GitHub's reusable-workflow page says an unspecified calling job gets
+# "default GITHUB_TOKEN permissions" without saying whether "default" means the repository
+# default or this file's top-level value, and the two readings differ exactly here. Run on
+# GitHub Actions with a `uses:`-only job carrying no `permissions:` of its own, this file's
+# shape yields **`Metadata: read` and nothing else** — a `contents` API call from inside the
+# called workflow returns 403. The same job with the region intact gets exactly what the
+# region declares. So deleting the region zeroes the agent rather than widening it.
+#
+# One honest caveat on the rationale, also measured: every repo in the estate
+# (dockyard, doc-station, agent-forge, tfin-api, tfin-ui, tfin-backend) already reports
+# `default_workflow_permissions: "read"`, so the write-all fallback this defends against is
+# not the state of any repo today. The floor still earns its line — the read default does
+# not grant `actions: read`, which this blocks too — but it is defence in depth against a
+# setting someone could change, not a hole being plugged.
+permissions: {}
+
+jobs:
+  claude:
+    uses: Tetrixx-SG/dock-yard/.github/workflows/_claude.yml@main
+    # Everything a repo grants its agent, in one declaration rather than a copy of this file.
+    # The default below is the NARROWEST of the three handlers measured across the estate:
+    # tfin-backend's read-only set. `id-token` is the one `write` in it: all three repos
+    # already grant it, and without it the action cannot mint the OIDC token its own auth
+    # needs. A repo whose agent must write, install its test dependencies, run more tools or
+    # see one more secret declares `[claude]` in its `dockyard.toml` (`write`, `fetch-depth`,
+    # `install-extras`, `allowed-tools`, `secrets`), and `dockyard sync` renders the grant,
+    # the `with:` and the `secrets:` of this job from it. Nothing else in this file is
+    # edited per repo, and widening a grant stays a line a reviewer reads in that table.
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+      id-token: write
+      actions: read
+    with:
+      fetch_depth: 1
+    secrets:
+      claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

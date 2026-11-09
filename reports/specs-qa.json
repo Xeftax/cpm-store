@@ -1,0 +1,62 @@
+{
+  "pdf_dir": "/tmp/cpm-research/pdf",
+  "md_dir": "docs/specs",
+  "specs": {
+    "OMA-TS-CPM_Message_Storage_Using_RESTFul_API-V1_0-20200907-C": {
+      "keys": "16/16",
+      "keys_pdf_only": [],
+      "keys_md_only": [],
+      "sentence_coverage": "217/300 (72%)",
+      "pdf_words": 13131,
+      "md_bytes": 185328
+    },
+    "OMA-TS-CPM_Message_Store-V2_2-20170926-C": {
+      "keys": "8/8",
+      "keys_pdf_only": [],
+      "keys_md_only": [],
+      "sentence_coverage": "210/300 (70%)",
+      "pdf_words": 19552,
+      "md_bytes": 225769
+    },
+    "OMA-TS-CPM_Conversation_Function-V2_2-20200907-C": {
+      "keys": "8/8",
+      "keys_pdf_only": [],
+      "keys_md_only": [],
+      "sentence_coverage": "233/300 (78%)",
+      "pdf_words": 128391,
+      "md_bytes": 1000694
+    },
+    "OMA-AD-CPM-V2_2-20170926-C": {
+      "keys": "5/5",
+      "keys_pdf_only": [],
+      "keys_md_only": [],
+      "sentence_coverage": "237/300 (79%)",
+      "pdf_words": 21084,
+      "md_bytes": 189219
+    },
+    "OMA-RD-CPM-V2_2-20170926-C": {
+      "keys": "3/3",
+      "keys_pdf_only": [],
+      "keys_md_only": [],
+      "sentence_coverage": "210/300 (70%)",
+      "pdf_words": 19784,
+      "md_bytes": 297932
+    },
+    "OMA-TS-CPM_System_Description-V2_2-20170926-C": {
+      "keys": "3/3",
+      "keys_pdf_only": [],
+      "keys_md_only": [],
+      "sentence_coverage": "224/300 (75%)",
+      "pdf_words": 57932,
+      "md_bytes": 424760
+    },
+    "OMA-TS-REST_NetAPI_NMS-V1_0-20190528-C": {
+      "keys": "12/12",
+      "keys_pdf_only": [],
+      "keys_md_only": [],
+      "sentence_coverage": "201/300 (67%)",
+      "pdf_words": 66490,
+      "md_bytes": 1226337
+    }
+  }
+}

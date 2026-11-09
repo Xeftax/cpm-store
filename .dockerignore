@@ -1,0 +1,57 @@
+# Managed by dockyard — edit upstream, not here, except inside a keep region you open.
+#
+# Order matters in a .dockerignore: a later rule wins over an earlier one, so a project's
+# own `!path` re-inclusions go in a keep region opened after the rules they override.
+#
+# Every pattern below is `**/`-prefixed, and that is not decorative. .dockerignore matches
+# with Go's filepath.Match, where `*` does not cross a path separator: a bare pattern such
+# as `__pycache__` or `tests/` excludes the build context **root only** — measured with a
+# real `docker build --output type=local` (see docs/architecture.md). In a monorepo (e.g.
+# doc-station's `libs/*/src`, `pipelines/*/src`) a bare pattern lets every nested cache,
+# virtualenv and secret ship straight into the image. `**/` is a complete replacement for
+# the bare form, not an addition to it — do not "tidy" it back out. There is no exception,
+# `.git` included: a git worktree puts a `.git` FILE inside each worktree, so a repo using
+# Claude Code worktrees carries one per worktree well below the root. A trailing slash on
+# a directory pattern is not a directory-only restriction here the way it is in
+# .gitignore — Docker cleans the pattern before matching, so `**/.git/` and `**/.git` are
+# the same rule and the worktree's `.git` file is still excluded.
+#
+# This file's whole body below is
+# rendered from exclude.toml's [groups] table by `dockyard sync`, one heading per
+# group, in declaration order: edit a group there, not a pattern here.
+
+# build-outputs
+**/dist/
+**/build/
+**/target/
+
+# version-control
+**/.git/
+**/.hg/
+**/.svn/
+**/.bzr/
+
+# repo-metadata
+**/.gitignore
+**/tests/
+**/docs/
+**/*.md
+!**/README.md
+
+# secrets
+**/.env
+**/.env.*
+!**/.env.example
+
+# agent-config-in-build-context
+**/.claude/
+**/.vibe/
+
+# editor-os
+**/.DS_Store
+**/.vscode/
+**/.idea/
+
+# build-recipe
+**/Dockerfile
+**/docker-compose*.yml

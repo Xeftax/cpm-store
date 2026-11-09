@@ -1,0 +1,4 @@
+# Blank issues stay off estate-wide: every issue goes through a form so it carries the
+# fields the board and the review gates rely on.
+blank_issues_enabled: false
+contact_links:

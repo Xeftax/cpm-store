@@ -1,0 +1,18 @@
+[package]
+name = "cpm-msg"
+description = "CPM message format (CPIM / MIME) parsing and serialization, and mapping to the integrator's conversation model."
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+cpm-core = { path = "../cpm-core" }
+serde = { workspace = true }
+thiserror = { workspace = true }
+chrono = { workspace = true }
+mail-parser = { workspace = true }
+
+[lints]
+workspace = true

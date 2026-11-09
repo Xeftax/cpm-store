@@ -1,0 +1,48 @@
+# Checks a PR for a reference to a tracking item. The mechanism (the
+# `check-issue-link` job, its four axes, and the rationale for each) lives in
+# `_pr-issue-link.yml` — read it there, not here.
+#
+# `uses:` is `@main`, the same as every other gate in this file's family — see `ci.yml`'s
+# header for what that trade-off gives up. This is an ordinary file in this repo's own
+# tree, synced like any other.
+name: PR Issue Link Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  check-issue-link:
+    uses: Tetrixx-SG/dock-yard/.github/workflows/_pr-issue-link.yml@main
+    # Shared, and a repo needing a different shape declines this file in `dockyard.toml`'s
+    # `decline` list rather than editing it here.
+    #
+    # Where to look for the reference:
+    #   body              — a `Closes #N` / `Fixes #N` / `Refs #N` line in the PR
+    #                        description (this repo's own default — advisory,
+    #                        docs-only and `no-issue`-labeled PRs exempt).
+    #   title             — title-pattern must match the PR title (tfin-ui's shape).
+    #   title-or-branch   — title-pattern against the title, else branch-pattern
+    #                        against the branch name (tetrixx-knowledge's shape).
+    #
+    # blocking: 'true' fails the check; 'false' only posts an advisory warning and
+    # always exits zero. This repo's own default is advisory — see the header above.
+    #
+    # title-pattern: only read under check-location title / title-or-branch. Default
+    # accepts a bare issue number; a convention that instead spells out the word
+    # ("issue #123") overrides to 'issue\s*#\d+'.
+    #
+    # branch-pattern: only read under check-location title-or-branch, and only as a
+    # fallback when title-pattern did not match.
+    #
+    # bot-bypass: comma-separated PR-author logins that always pass, whatever
+    # check-location finds. Empty means no bypass.
+    with:
+      check-location: body
+      blocking: false
+      title-pattern: '#[0-9]+'
+      branch-pattern: '(^|/)[0-9]+-'
+      bot-bypass: ''

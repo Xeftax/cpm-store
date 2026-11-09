@@ -1,0 +1,35 @@
+name: Bug
+description: Something doesn't work as it should
+title: "<short description of the bug>"
+type: Bug
+labels: []
+body:
+  - type: textarea
+    id: bug
+    attributes:
+      label: Bug
+      description: What's broken? What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Repro
+      description: Concrete steps to reproduce. Include sample case ID, branch, command, etc.
+    validations:
+      required: true
+  - type: textarea
+    id: files
+    attributes:
+      label: Files / code paths
+      description: Suspected files or modules involved (with `file:line` references if known).
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: What does "fixed" mean? Add specific cases that should now pass.
+      value: |
+        - [ ]
+        - [ ]
+    validations:
+      required: true
