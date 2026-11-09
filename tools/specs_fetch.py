@@ -55,7 +55,14 @@ def main() -> int:
             print(f"skip (déjà là): {dst}")
             continue
         print(f"GET {url}")
-        urllib.request.urlretrieve(url, dst)
+        # openmobilealliance.org returns 403 to the default urllib User-Agent;
+        # send a browser UA so the official PDFs can be fetched for local use.
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                                       "AppleWebKit/537.36 (KHTML, like Gecko) "
+                                       "Chrome/126.0 Safari/537.36"})
+        with urllib.request.urlopen(req) as resp, open(dst, "wb") as out:
+            out.write(resp.read())
         print(f"  -> {dst} ({dst.stat().st_size:,} octets)")
 
     if args.convert:
