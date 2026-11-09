@@ -13,6 +13,13 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 jiff = { workspace = true }
 uuid = { workspace = true }
+# Object-safe async traits for the ports (dyn-compat needed for the future
+# C vtable of the host ports in cpm-ffi, ADR D5).
+async-trait = { workspace = true }
+
+[dev-dependencies]
+# Test-only async runtime for the ports mock; the lib itself stays runtime-free.
+tokio = { workspace = true }
 
 [lints]
 workspace = true

@@ -45,7 +45,7 @@ Legend: ☐ to do · ◐ partial · ☑ done
 - [ ] List an object's flags (GET `.../flags`) — Test:
 - [ ] Replace the full set of flags (PUT) — Test:
 - [ ] Test/add/delete an individual flag (GET/PUT/DELETE `.../flags/{flag}`) — Test:
-- [ ] Supported flags: `\Seen`, `\Answered`, `\Flagged`, `\Deleted`, `\Draft`, `\Recent`, `$Forwarded`, `\read-report-sent`, `Archived` — `§5.6` — Test:
+- [x] Supported flags: `\Seen`, `\Answered`, `\Flagged`, `\Deleted`, `\Draft`, `\Recent`, `$Forwarded`, `\read-report-sent`, `Archived` — `§5.6` — Test: `cpm-core::model::flags::tests::all_spec_flags_round_trip` (+ `flag_names_are_case_insensitive`, `non_cpm_template_flags_become_keywords`, `flag_list_json_shape`); golden `golden_cpm_rest_annexes_c_h_round_trip` (annex C: `\Seen`+`\Flagged` on object obj542)
 
 ## Subscriptions / notifications (spec §5.5, §7.3.1)
 
