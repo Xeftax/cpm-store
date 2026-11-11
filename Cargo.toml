@@ -18,7 +18,7 @@ uuid = { version = "1", features = ["v4", "serde"] }
 url = "2"
 # Async / HTTP (cpm-nms)
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time"] }
-reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "multipart", "rustls-tls"] }
 # MIME / CPIM (cpm-msg)
 mail-parser = "0.11"
 # Traits async (cpm-client)
