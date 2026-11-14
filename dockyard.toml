@@ -6,6 +6,21 @@
 languages = ["rust"]
 harnesses = ["vibe"]
 
+# Repo perso (hors org Tetrixx-SG) : les workflows dockyard appellent les reusable
+# workflows Tetrixx-SG/dock-yard + les secrets d'une GitHub App de l'org, tous 404
+# depuis un compte perso. La CI est autonome dans .github/workflows/ci.yml (elle
+# appelle directement scripts/ci/*.sh). On decline les workflows dockyard pour que
+# `dockyard sync` ne les réintroduise pas.
+decline = [
+  ".github/workflows/board.yml",
+  ".github/workflows/brand-lint.yml",
+  ".github/workflows/ci.yml",
+  ".github/workflows/claude.yml",
+  ".github/workflows/deploy.yml",
+  ".github/workflows/pr-issue-link.yml",
+  ".github/workflows/release.yml",
+]
+
 [[dependabot]]
 ecosystem = "cargo"
 group = "rust"
