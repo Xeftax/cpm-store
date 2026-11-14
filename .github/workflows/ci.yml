@@ -57,7 +57,7 @@ jobs:
       - run: scripts/ci/msrv-rust.sh
 
   security:
-    name: security (cargo-deny : licences + advisories)
+    name: security (cargo-deny, licences + advisories)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
