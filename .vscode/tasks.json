@@ -1,0 +1,30 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "review-check (diff branche courante vs main)",
+      "type": "shell",
+      "command": "cd tools/review-check && cargo build --release -q && cd ../.. && ./tools/review-check/target/release/review-check --format=gcc main HEAD",
+      "problemMatcher": {
+        "owner": "review-check",
+        "fileLocation": ["relative", "${workspaceFolder}"],
+        "pattern": {
+          "regexp": "^(.+\\.rs):(\\d+):1: (warning|error): (.+) \\((.+)\\)$",
+          "file": 1,
+          "line": 2,
+          "severity": 3,
+          "message": 4,
+          "code": 5
+        },
+        "severity": "warning"
+      },
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+    },
+    {
+      "label": "review-check --all (audit complet du repo)",
+      "type": "shell",
+      "command": "cd tools/review-check && cargo build --release -q && cd ../.. && ./tools/review-check/target/release/review-check --format=gcc --all",
+      "problemMatcher": "$review-check"
+    }
+  ]
+}
