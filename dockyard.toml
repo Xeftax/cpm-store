@@ -26,3 +26,24 @@ decline = [
 [[dependabot]]
 ecosystem = "cargo"
 group = "rust"
+
+# Level A (platform). Diffère du standard dockyard sur trois points, because repo
+# perso solo (Xeftax) avec CI autonome :
+# - required-checks = les 6 jobs de .github/workflows/ci.yml (pas de job "verdict" dockyard) ;
+# - required-reviews = 0 et code-owner-reviews = false (contributeur unique, pas de CODEOWNERS) ;
+# - merge-queue = false (standard org ; inutile en solo).
+# Pose sur GitHub : branch protection main (6 checks requis, enforce_admins, linear
+# history, force-push et suppression bloques), allow_merge_commit=false,
+# vulnerability-alerts on, automated-security-fixes non pause.
+[platform]
+required-checks = [
+  "build",
+  "test",
+  "lint (fmt + clippy -D warnings)",
+  "msrv (rust-version du workspace)",
+  "security (cargo-deny, licences + advisories)",
+  "secret scan (gitleaks, binaire vérifié par le script)",
+]
+required-reviews = 0
+code-owner-reviews = false
+merge-queue = false
