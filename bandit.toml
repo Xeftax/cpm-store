@@ -1,0 +1,67 @@
+# Bandit configuration - managed by dockyard
+# Do not edit manually - changes will be overwritten on sync
+
+[tool.bandit]
+# `exclude_dirs`, not `exclude`: a `-c` TOML config (this file) is read by
+# bandit/cli/main.py through a different path than an `--ini` file, and the two formats
+# do NOT share a key name — `exclude` is what the INI reader accepts, and it is silently
+# dropped here. This file replaces `.bandit` (INI) for exactly that reason: one format,
+# one parser, and the key that would otherwise get this wrong is gone.
+#
+# Each value is tried as an fnmatch pattern against the whole path AND as a plain
+# substring of it. A configured value is never rewritten to a directory form (only
+# `--exclude` values are), so a bare `tests` would also drop `src/attests.py` and
+# `src/contests/x.py`. Every directory is therefore written as a glob pair, `name/*` and
+# `*/name/*`: anchored on a path segment, and matching both call shapes — an explicit file
+# list arrives bare (`tests/x.py`; bandit prepends `./` only after this check) and a
+# `bandit -r .` walk arrives as `./tests/x.py`. A glob never occurs as a substring of a
+# path, so only the fnmatch half can fire. Measured for each form against both shapes.
+#
+# What a run over `git ls-files` still needs from this list: `tests/` (versioned, so
+# listed, and left out by policy). `.claude/worktrees/` only protects a manual
+# `bandit -r .`: worktrees are ignored by `.gitignore` and so never listed.
+#
+# Do NOT lean on bandit's own `--exclude` default (`.svn,CVS,.bzr,.hg,.git,...`): it is a
+# substring too, and rewritten to a directory glob only when the name is an existing
+# directory. `.git` is a FILE in a linked worktree, where it silently drops every
+# `.github/` path. `scripts/ci/sast-python.sh` passes `--exclude ""` for that reason.
+#
+# `.claude/worktrees/` and not `.claude/`, deliberately. The worktrees are the size
+# problem: a repo with 32 Claude Code worktrees scanned 2M lines instead of 63k when a
+# directory walk reached them. The rest of `.claude/` is real, versioned code (skills and
+# their scripts), and an earlier version of this exclusion named all of it and hid it: in
+# doc-station, 30 tracked Python files under `.claude/skills/` were never scanned, and they
+# do carry findings. Those are reported now, which is the point.
+exclude_dirs = [
+    "tests/*",
+    "*/tests/*",
+    ".claude/worktrees/*",
+    "*/.claude/worktrees/*",
+    ".venv/*",
+    "*/.venv/*",
+    "venv/*",
+    "*/venv/*",
+    ".direnv/*",
+    "*/.direnv/*",
+    ".pyenv/*",
+    "*/.pyenv/*",
+    ".tox/*",
+    "*/.tox/*",
+    "dist/*",
+    "*/dist/*",
+    "build/*",
+    "*/build/*",
+    "_build/*",
+    "*/_build/*",
+    "*.egg-info/*",
+    "*/*.egg-info/*",
+    ".eggs/*",
+    "*/.eggs/*",
+    "__pypackages__/*",
+    "*/__pypackages__/*",
+    "buck-out/*",
+    "*/buck-out/*",
+    "site-packages/*",
+    "*/site-packages/*",
+]
+skips = ["B101"]

@@ -8,5 +8,28 @@
     "editor.defaultFormatter": "rust-lang.rust-analyzer"
   },
   "rust-analyzer.checkOnSave.command": "clippy",
-  "rust-analyzer.cargo.allFeatures": true
+  "rust-analyzer.cargo.allFeatures": true,
+  "python.analysis.typeCheckingMode": "standard",
+  "python.testing.pytestArgs": [
+    ".",
+    "-c",
+    "pytest.toml"
+  ],
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestEnabled": true,
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff"
+  },
+  "ruff.fixAll": true,
+  "ruff.organizeImports": true,
+  "ruff.configuration": "ruff.toml",
+  "mypy-type-checker.importStrategy": "fromEnvironment",
+  "mypy-type-checker.args": [
+    "--config-file",
+    "mypy.toml"
+  ],
+  "bandit.args": [
+    "-c",
+    "bandit.toml"
+  ]
 }

@@ -12,5 +12,13 @@ exclude = [
     "**/.hg/**",
     "**/.svn/**",
     "**/.bzr/**",
+    "**/.mypy_cache/**",
+    "**/.pytest_cache/**",
+    "**/.ruff_cache/**",
+    "**/__pycache__/**",
+    "**/.venv/**",
+    "**/venv/**",
+    "**/.direnv/**",
+    "**/.pyenv/**",
     "**/.claude/worktrees/**",
 ]

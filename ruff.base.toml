@@ -1,0 +1,130 @@
+# Ruff base configuration - managed by dockyard.
+# Committed downstream like any other dockyard file: `dockyard sync` copies it verbatim into
+# each project, where it sits at the repo root beside that project's own `ruff.toml`
+# (`extend = "ruff.base.toml"`, plus any local deviation in a `dockyard:keep` region — see
+# that file's own header). Nothing gitignores it and no CI step materialises it; the
+# committed copy IS what ruff reads.
+# Root-level, not nested under a subdirectory: ruff resolves the per-file-ignores
+# globs below relative to *this* file's directory, so nesting it would silently
+# stop them matching the project's own tests/ and _generated/ trees.
+# Do not edit in a project; the committed `ruff.toml` there carries only that
+# project's deviations and points back here via `extend`.
+
+exclude = [
+    ".git",
+    ".hg",
+    ".svn",
+    ".bzr",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    "__pycache__",
+    ".venv",
+    "venv",
+    ".direnv",
+    ".pyenv",
+    ".claude/worktrees",
+    "docs",
+    "dist",
+    "build",
+    "_build",
+    "*.egg-info",
+    ".eggs",
+    "__pypackages__",
+    "buck-out",
+    "site-packages",
+    ".git-rewrite",
+    ".ipynb_checkpoints",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".vscode",
+    ".tox",
+]
+line-length = 119
+indent-width = 4
+target-version = "py313"
+
+[lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "W",    # pycodestyle warnings
+    "C4",   # flake8-comprehensions
+    "SIM",  # flake8-simplify
+    "D",    # pydocstyle (docstrings)
+    "PL",   # pylint
+    "PTH",  # flake8-use-pathlib
+    "TCH",  # flake8-type-checking
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "I",    # isort (import sorting)
+    "S",    # flake8-bandit (security)
+    "PERF", # perflint (performance)
+    "C90",  # mccabe (complexity)
+    "PYI",  # flake8-pyi (type stubs)
+    "ANN",  # flake8-annotations (type hints)
+    "TID"   # flake8-tidy-imports (relative imports, banned APIs)
+]
+ignore = ["D203", "D213"]
+fixable = ["ALL"]
+unfixable = []
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+# Per-directory configuration
+[lint.per-file-ignores]
+"**/tests/**" = ["S", "PLR2004", "D", "PLR0913","ANN401"]  # Ignore security, magic values, docstrings, and arg count in tests
+# Same exemptions for a test file that cannot sit under tests/. Promoted from
+# agent-forge, whose local_dev/test_cli_client.py imports its
+# siblings flat and so only resolves with local_dev on sys.path — and pytest.ini is
+# dockyard-managed, so `pythonpath` cannot be extended in the project. Measured before
+# promoting: that file is the ONLY test_*.py outside a tests/ tree anywhere in the
+# estate, so this widens nothing that exists today. A test file is a test file wherever
+# it lives; if a repo ever wants the strict rules back on one, that is a deviation in
+# its own ruff.toml, which is what deviations are for.
+"**/test_*.py" = ["S", "PLR2004", "D", "PLR0913", "ANN401"]
+"**/_generated/**" = ["E501", "TCH", "D", "ANN", "TID251", "UP"] # Generated code — line length and import style are not controllable
+# TID251 and UP promoted here: agent-forge and doc-station both
+# carried them as a local deviation on this same glob, each with a comment saying the
+# other repo needed the same. datamodel-code-generator emits `Optional[X]` inside a
+# runtime subscript, which is an expression rather than an annotation, so ruff offers no
+# fix — and the generated tree is exactly where a banned-import rule has nothing to say.
+
+# TC001/TC002/TC003 move imports used only in annotations into `if TYPE_CHECKING:`.
+# Pydantic resolves annotations at RUNTIME to build its validators, so for a
+# BaseModel that turns every field type into an unresolvable forward reference and
+# the model raises `PydanticUserError: ... is not fully defined` on first use.
+# Promoted from agent-forge's ruff.toml: its own comment there flagged
+# that doc-station selects TCH too with no such guard, one pydantic model away from
+# the same failure.
+[lint.flake8-type-checking]
+runtime-evaluated-base-classes = [
+    "pydantic.BaseModel",
+    "pydantic_settings.BaseSettings",
+]
+# Promoted from agent-forge. Purely additive, and a no-op in a
+# repo that uses neither decorator — doc-station uses neither, and `ruff check .` there
+# is unchanged by this entry, measured. Without it, applying ruff's own suggested fixes
+# moved these decorators' argument types into a TYPE_CHECKING block, where pydantic
+# cannot resolve them at runtime: 16 tests in agent-forge's
+# tests/unit/test_api_schemas.py broke. Reproduced once before the setting was added.
+runtime-evaluated-decorators = [
+    "pydantic.validate_call",
+    "pydantic.dataclasses.dataclass",
+]
+
+# `from __future__ import annotations` makes every annotation a string at runtime, which
+# defeats the guard above: pydantic then cannot resolve field types to build validators.
+# On py313 the syntax it buys is available anyway, so the import has nothing to offer and
+# one way to break things. Promoted from both consumers, which
+# carried this entry byte-identically, each noting the other had it too.
+[lint.flake8-tidy-imports.banned-api]
+"__future__.annotations".msg = "Do not use `from __future__ import annotations` — use string literals for forward refs on Python 3.13+"
+
+[format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = false
+docstring-code-line-length = 119

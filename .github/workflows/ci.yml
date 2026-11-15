@@ -74,3 +74,60 @@ jobs:
         with:
           fetch-depth: 0
       - run: scripts/ci/secret-scan.sh
+
+  # --- domaine python (dockyard) ---
+
+  lint-python:
+    name: lint-python (ruff check + format)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+      - run: uv sync --all-extras --frozen
+      - run: scripts/ci/lint-python.sh
+
+  typecheck-python:
+    name: typecheck-python (mypy strict)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+      - run: uv sync --all-extras --frozen
+      - run: scripts/ci/typecheck-python.sh
+
+  security-python:
+    name: security-python (bandit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+      - run: uv sync --all-extras --frozen
+      - run: scripts/ci/sast-python.sh
+
+  test-python:
+    name: test-python (pytest + coverage)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+      - run: uv sync --all-extras --frozen
+      - run: scripts/ci/test-python.sh
+
+  format-markdown:
+    name: format-markdown (mdformat --check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: git ls-files '*.md' | xargs scripts/ci/format-markdown.sh --check

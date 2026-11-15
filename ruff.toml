@@ -1,0 +1,10 @@
+# Ruff configuration — this project's deviations from dockyard's shared base, and nothing
+# else. The base (select, excludes, per-file-ignores, the pydantic runtime-evaluation
+# guard...) lives in ruff.base.toml, committed in this repo like any other dockyard file
+# and synced — and drifted from — the same way `dockyard check` watches mypy.ini.
+#
+# A deviation that another repo would also want is a bug in the base, not a local
+# setting: promote it there instead. A deviation that is genuinely this repo's goes in a
+# `dockyard:keep` region, or the next sync overwrites it.
+extend = "ruff.base.toml"
+

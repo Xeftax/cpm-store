@@ -23,6 +23,30 @@
 repos:
 - repo: local
   hooks:
+  - id: lint-python
+    name: lint-python
+    entry: "bash -c '[[ -x scripts/ci/lint-python.sh ]] || exit 0; scripts/ci/lint-python.sh'"
+    language: system
+    stages: [ pre-commit ]
+    types: [ python ]
+    pass_filenames: false
+
+  - id: typecheck-python
+    name: typecheck-python
+    entry: "bash -c '[[ -x scripts/ci/typecheck-python.sh ]] || exit 0; scripts/ci/typecheck-python.sh'"
+    language: system
+    stages: [ pre-commit ]
+    types: [ python ]
+    pass_filenames: false
+
+  - id: security-python
+    name: security-python
+    entry: "bash -c '[[ -x scripts/ci/sast-python.sh ]] || exit 0; scripts/ci/sast-python.sh'"
+    language: system
+    stages: [ pre-commit ]
+    types: [ python ]
+    pass_filenames: false
+
   - id: lint-rust
     name: lint-rust
     entry: "bash -c '[[ -x scripts/ci/lint-rust.sh ]] || exit 0; scripts/ci/lint-rust.sh'"

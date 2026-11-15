@@ -1,0 +1,14 @@
+# MyPy configuration — this repo's own (declined from dockyard: cpm-store has no
+# src/ layout; the checked trees are tools/ and scripts/, reached via `.` on the
+# command line in scripts/ci/typecheck-python.sh).
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+mypy_path = "tools,scripts"
+exclude = [
+    "(^|/)\\.venv/",
+    "(^|/)\\.claude/worktrees/",
+    "(^|/)build/",
+    "(^|/)dist/",
+]

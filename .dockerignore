@@ -20,6 +20,29 @@
 # rendered from exclude.toml's [groups] table by `dockyard sync`, one heading per
 # group, in declaration order: edit a group there, not a pattern here.
 
+# caches
+**/.mypy_cache/
+**/.pytest_cache/
+**/.ruff_cache/
+**/__pycache__/
+
+# venvs
+**/.venv/
+**/venv/
+**/.direnv/
+**/.pyenv/
+
+# python-bytecode
+**/*.pyc
+**/*.pyo
+**/*.pyd
+
+# python-extras
+**/*.egg-info/
+**/.coverage
+**/htmlcov/
+**/conftest.py
+
 # build-outputs
 **/dist/
 **/build/

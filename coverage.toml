@@ -1,0 +1,17 @@
+# coverage configuration — this repo's own (declined from dockyard): sources are
+# tools/ and scripts/, tests in tests/.
+
+[tool.coverage.run]
+source = ["tools", "scripts"]
+omit = [
+    "*/tests/*",
+    "*/.mypy_cache/*",
+    "*/.pytest_cache/*",
+    "*/.ruff_cache/*",
+    "*/__pycache__/*",
+    "*/.venv/*",
+]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 0

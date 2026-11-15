@@ -10,9 +10,40 @@
 # come from the one `local-state` group, so the coupling is structural rather than a
 # sentence someone has to remember.
 
-# build-outputs
+# venvs
+.venv/
+venv/
+.direnv/
+.pyenv/
+
+# venv-aliases
+env/
+
+# tox-envs
+.tox/
+
+# caches
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+
+# python-bytecode
+*.pyc
+*.pyo
+*.pyd
+
+# build-artefacts
 dist/
 build/
+_build/
+*.egg-info/
+.eggs/
+__pypackages__/
+buck-out/
+site-packages/
+
+# build-outputs
 target/
 
 # rust-lockfile
@@ -24,6 +55,17 @@ target/
 # tool-reports
 gitleaks-report.json
 test-output.txt
+
+# python-reports
+ruff-check.txt
+ruff-format.txt
+mypy-check.txt
+coverage.xml
+htmlcov/
+.coverage*
+bandit-report.json
+bandit-summary.md
+test-results*.xml
 
 # rust-reports
 clippy.txt
