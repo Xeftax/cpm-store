@@ -12,7 +12,7 @@ impl Rule for DelegateSameName {
         "manual-delegation-methods"
     }
 
-    fn candidates(&self, ast: &syn::File) -> Vec<Candidate> {
+    fn candidates(&self, ast: &syn::File, _src: &str) -> Vec<Candidate> {
         impl_methods(ast)
             .map(|m| Candidate {
                 line: line_of(&m.sig.ident),

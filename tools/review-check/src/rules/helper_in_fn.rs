@@ -11,7 +11,7 @@ impl Rule for HelperInFn {
         "serde-helper-identity"
     }
 
-    fn candidates(&self, ast: &syn::File) -> Vec<Candidate> {
+    fn candidates(&self, ast: &syn::File, _src: &str) -> Vec<Candidate> {
         fns(ast)
             .map(|f| Candidate {
                 line: line_of(&f.sig.ident),
