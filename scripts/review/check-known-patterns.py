@@ -46,8 +46,9 @@ def main() -> None:
     hits = 0
     for p in patterns:
         rx = re.compile(p["regex"])
+        excluded = set(p.get("exclude_files", []))
         for f in rs_files:
-            if not fnmatch.fnmatch(f, p["scope"]):
+            if not fnmatch.fnmatch(f, p["scope"]) or f in excluded:
                 continue
             for i, line in enumerate(read_lines(None if ref == "HEAD" else ref, f), 1):
                 if rx.search(line) and f"review: ignore {p['id']}" not in line:

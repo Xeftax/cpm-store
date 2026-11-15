@@ -1,14 +1,17 @@
 # Known-patterns de review — cpm-store (voir docs/adr/0001-review-known-patterns.md)
 #
-# Règles :
+# Règles (voir .vibe/skills/review-memory-owner) :
 # - severity = "warning" UNIQUEMENT (bloquant = compilateur / tests / clippy -D)
-# - noter dès la 1ère occurrence ; indexer TOUTES les occurrences (file/lines/since)
-# - soupape : `// review: ignore <rule-id>` dans le fichier concerné
+# - ON NE SUPPRIME JAMAIS UNE RÈGLE : si elle ne marche plus, on l'édite/adapte
+#   (regex, scope) ou on l'exclut par fichier (exclude_files, comme un lint allow),
+#   ou au pire soupape par ligne : `// review: ignore <rule-id>`
+# - scope restreint à attribute.rs tant que kind.rs n'a pas été revu (élargir ensuite)
+# - indexer TOUTES les occurrences (file/lines/since), jamais ce qui a remplacé le pattern
 # - lancer le check sur le DIFF de la PR, pas le fichier entier
 
 [[pattern]]
 id = "serde-helper-identity"
-scope = "crates/**/*.rs"
+scope = "crates/cpm-core/src/model/attribute.rs" # TODO élargir après review de kind.rs
 regex = "struct Helper"
 message = "impl serde manuel + struct Helper : si la conversion est une recopie identité, poser #[serde(...)] directement sur le champ (derive). Voir .vibe/skills/serde-mapping-owner."
 severity = "warning"
@@ -18,7 +21,7 @@ occurrences = [
 
 [[pattern]]
 id = "newtype-pub-with-delegation"
-scope = "crates/**/*.rs"
+scope = "crates/cpm-core/src/model/attribute.rs" # TODO élargir après review de kind.rs
 regex = "pub struct \\w+\\(pub Vec<"
 message = "newtype transparent (champ pub) + méthodes de délégation (iter/len/is_empty) = redondant. Choisir : Deref<Target=Vec<..>> (API générée, champ privé) ou champ pub sans délégations. Voir .vibe/skills/model-struct-owner."
 severity = "warning"
@@ -26,10 +29,18 @@ occurrences = [
   { file = "crates/cpm-core/src/model/attribute.rs", lines = "53", since = "PR #3" },
 ]
 
-# RETIRÉ après mesure (règle ADR 0001 "mesurer avant de figer") : le pattern
-#   regex = "impl<'de> [Dd]eserialize<'de> for|impl Serialize for \\w+ \\{"
-# matchait 11 impls légitimes sur des enums (MessageContext, MetadataFlag, FlagList,
-# RequestError — sérialisation custom de variantes) = faux positifs. Un impl manuel
-# sur enum/newtype est souvent justifié ; sur une struct data, voir serde-helper-identity.
-# [[pattern]]
-# id = "manual-serde-impl" ...
+[[pattern]]
+id = "manual-serde-impl"
+scope = "crates/cpm-core/src/model/attribute.rs" # TODO élargir après review de kind.rs
+regex = "impl<'de> [Dd]eserialize<'de> for|impl Serialize for \\w+ \\{"
+# Hors scope (impls légitimes d'enums/newtypes, à réintégrer quand on élargira le scope) :
+exclude_files = [
+  "crates/cpm-core/src/model/kind.rs",   # MessageContext/Direction : variantes custom
+  "crates/cpm-core/src/model/flags.rs",   # MetadataFlag/FlagList
+  "crates/cpm-core/src/model/search.rs",  # RequestError
+]
+message = "impl serde manuel : vérifier qu'un derive + #[serde(default, deserialize_with, rename)] sur le champ ne suffit pas. Voir .vibe/skills/serde-mapping-owner."
+severity = "warning"
+occurrences = [
+  { file = "crates/cpm-core/src/model/attribute.rs", lines = "23, 103, 112", since = "PR #3" },
+]
