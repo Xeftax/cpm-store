@@ -21,5 +21,12 @@
   "typescript.tsdk": "node_modules/typescript/lib",
   "typescript.enablePromptUseWorkspaceTsdk": true,
 
-  "claudeCode.selectedModel": "opus"
+  "claudeCode.selectedModel": "opus",
+
+  // rust-analyzer: checkOnSave est un booléen (les vieux objets {"enable":...}
+  // provoquent "invalid type: map, expected a boolean"). Clippy on-save via check.command.
+  "rust-analyzer.checkOnSave": true,
+  "rust-analyzer.check.command": "clippy",
+  // autorise la task background "review-check (watch)" à démarrer à l'ouverture du dossier
+  "task.allowAutomaticTasks": "on"
 }
