@@ -1,0 +1,8 @@
+# pytest configuration — this repo's own (declined from dockyard: cpm-store has no
+# src/ layout, tests live in tests/, tools in tools/ and scripts/).
+
+[pytest]
+testpaths = ["tests"]
+pythonpath = ["."]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]

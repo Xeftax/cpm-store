@@ -1,0 +1,28 @@
+# Python tooling of cpm-store (specs fetch/QA, monitoring dashboards, CI helpers).
+# Not a package: scripts run in-place via `uv run` (package = false).
+
+[project]
+name = "cpm-store-tools"
+version = "0.1.0"
+description = "Python tooling for cpm-store (specs fetch/QA, monitoring dashboards, CI helpers)"
+requires-python = ">=3.13"
+dependencies = [
+    "pyyaml>=6",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.14",
+    "mypy>=1.18",
+    "bandit>=1.8",
+    "pytest>=8",
+    "pytest-cov>=6",
+    "pytest-asyncio>=0.26",
+    "mdformat>=0.7.22",
+    "mdformat-gfm",
+    "mdformat-tables",
+    "mdformat-frontmatter",
+]
+
+[tool.uv]
+package = false

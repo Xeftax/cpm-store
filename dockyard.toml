@@ -3,7 +3,7 @@
 # A Rust workspace, driven from Mistral Vibe (no .claude/ here, so the harness is declared
 # rather than detected).
 [dockyard]
-languages = ["rust"]
+languages = ["rust", "python"]
 harnesses = ["vibe"]
 
 # Repo perso (hors org Tetrixx-SG) : les workflows dockyard appellent les reusable
@@ -14,6 +14,9 @@ harnesses = ["vibe"]
 decline = [
   "deny.toml",
   "scripts/ci/msrv-rust.sh",
+  "mypy.toml",
+  "coverage.toml",
+  "pytest.toml",
   ".github/workflows/board.yml",
   ".github/workflows/brand-lint.yml",
   ".github/workflows/ci.yml",
