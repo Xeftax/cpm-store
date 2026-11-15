@@ -1,45 +1,72 @@
 # Known-patterns de review — cpm-store (voir docs/adr/0001-review-known-patterns.md)
 #
-# Règles (voir .vibe/skills/review-memory-owner) :
+# Structure d'une règle (voir .vibe/skills/review-memory-owner) :
+#   rule              = la GÉNÉRALISATION (le principe, pas un cas isolé)
+#   applies_to        = à quoi ça s'applique en général
+#   when_not_applicable = exceptions documentées (jamais supprimées)
+#   detect            = regex de détection (signal, pas la règle elle-même)
+#   occurrences       = toutes les occurrences connues (file/lines/since)
+#
+# Règles :
 # - severity = "warning" UNIQUEMENT (bloquant = compilateur / tests / clippy -D)
-# - ON NE SUPPRIME JAMAIS UNE RÈGLE : si elle ne marche plus, on l'édite/adapte
-#   (regex, scope), ou au pire soupape par ligne : `// review: ignore <rule-id>`
-# - exclude_files verrouillé : un fichier n'y entre qu'avec l'accord explicite de
-#   l'utilisateur (règle review-memory-owner). Par défaut on garde les warnings ;
-#   ils disparaissent quand la règle ou les fichiers sont fixés, pas en les cachant.
-# - indexer TOUTES les occurrences (file/lines/since), jamais ce qui a remplacé le pattern
-# - lancer le check sur le DIFF de la PR, pas le fichier entier
+# - ON NE SUPPRIME JAMAIS UNE RÈGLE : on l'édite/adapte, ou soupape par ligne
+#   `// review: ignore <rule-id>`
+# - exclude_files verrouillé : ajout uniquement avec accord explicite de l'utilisateur
+# - les warnings restent jusqu'à ce que la règle ou les fichiers soient fixés
+# - lancer le check sur les LIGNES AJOUTÉES du diff, pas les fichiers entiers
 
 [[pattern]]
 id = "serde-helper-identity"
+rule = "Un impl Serialize/Deserialize manuel + struct Helper n'est justifié que quand la forme JSON diffère de la forme interne (renommage, fusion de champs, validation, transformation). Si la conversion est une recopie champ à champ (identité), poser #[serde(default, deserialize_with, rename)] directement sur le champ et dériver."
+applies_to = "toute struct data mappée depuis/vers du JSON"
+when_not_applicable = "enum/newtype avec mapping custom de variantes (ex. MessageContext, MetadataFlag) : pas de Helper, impl manuel légitime"
 scope = "crates/**/*.rs"
-regex = "struct Helper"
-message = "impl serde manuel + struct Helper : si la conversion est une recopie identité, poser #[serde(...)] directement sur le champ (derive). Voir .vibe/skills/serde-mapping-owner."
+detect = "struct Helper"
+message = "impl serde manuel + Helper avec conversion identité -> derive + #[serde(...)] sur le champ. Voir .vibe/skills/serde-mapping-owner."
 severity = "warning"
+exclude_files = []
 occurrences = [
   { file = "crates/cpm-core/src/model/attribute.rs", lines = "26-37 et 115-121", since = "PR #3" },
 ]
 
 [[pattern]]
-id = "newtype-pub-with-delegation"
+id = "manual-serde-impl"
+rule = "Par défaut, dériver Serialize/Deserialize avec des attributs champ (#[serde(default, deserialize_with, rename, ...)]) couvre ~95% des cas. Un impl manuel ne se justifie que pour un mapping non exprimable par les attributs (enum à variantes custom, newtype enveloppe, logique one_or_many custom)."
+applies_to = "tout type mappé en JSON"
+when_not_applicable = "enums/newtypes avec sérialisation custom de variantes (kind.rs MessageContext/Direction, flags.rs MetadataFlag/FlagList, search.rs RequestError) — impl manuel attendu, à valider au cas par cas"
 scope = "crates/**/*.rs"
-regex = "pub struct \\w+\\(pub Vec<"
-message = "newtype transparent (champ pub) + méthodes de délégation (iter/len/is_empty) = redondant. Choisir : Deref<Target=Vec<..>> (API générée, champ privé) ou champ pub sans délégations. Voir .vibe/skills/model-struct-owner."
+detect = "impl<'de> [Dd]eserialize<'de> for|impl Serialize for \\w+ \\{"
+message = "impl serde manuel : vérifier qu'un derive + attributs champ ne suffit pas. Voir .vibe/skills/serde-mapping-owner."
 severity = "warning"
+exclude_files = []
+occurrences = [
+  { file = "crates/cpm-core/src/model/attribute.rs", lines = "23, 103, 112", since = "PR #3" },
+]
+
+[[pattern]]
+id = "newtype-pub-with-delegation"
+rule = "Un newtype choisit UN mode d'exposition : transparent (champ pub, accès .0) OU encapsulé (champ privé + méthodes). Ne jamais mélanger : avec un champ pub, les méthodes de délégation (iter/len/is_empty) sont mortes. L'API de l'inner se GÉNÈRE par Deref<Target = Inner> (tout-ou-rien) ; un sous-ensemble se choisit par méthodes écrites ou macro delegate!."
+applies_to = "tout newtype `struct X(pub Vec<T>)` ou wrapper de collection"
+when_not_applicable = "quand un invariant doit être vérifié à l'insertion (ex. unicité des noms REST-NMS §5.3.2.6) : champ privé, pas de DerefMut"
+scope = "crates/**/*.rs"
+detect = "pub struct \\w+\\(pub Vec<"
+message = "newtype pub + délégations manuelles = redondant. Choisir Deref (API générée, champ privé) ou pub sans délégations. Voir .vibe/skills/model-struct-owner."
+severity = "warning"
+exclude_files = []
 occurrences = [
   { file = "crates/cpm-core/src/model/attribute.rs", lines = "53", since = "PR #3" },
 ]
 
 [[pattern]]
-id = "manual-serde-impl"
+id = "manual-delegation-methods"
+rule = "Ne jamais écrire à la main une méthode qui est une pure délégation vers l'inner d'un newtype : Deref<Target = Inner> génère automatiquement len/iter/is_empty/get/... (tout-ou-rien). Pour un sous-ensemble explicite : méthodes choisies ou macro delegate! { len -> usize, ... }."
+applies_to = "tout newtype/wrapper qui expose l'API de son type interne"
+when_not_applicable = "méthodes avec logique métier ajoutée (ex. get case-insensitive §5.3.2.5) : les écrire à la main est correct"
 scope = "crates/**/*.rs"
-regex = "impl<'de> [Dd]eserialize<'de> for|impl Serialize for \\w+ \\{"
-# exclude_files volontairement VIDE : verrouillé, ajout uniquement avec accord explicite
-# de l'utilisateur (les impls d'enums de kind.rs/flags.rs/search.rs restent en warning
-# jusqu'à ce que la règle ou les fichiers soient fixés — voir review-memory-owner).
-exclude_files = []
-message = "impl serde manuel : vérifier qu'un derive + #[serde(default, deserialize_with, rename)] sur le champ ne suffit pas. Voir .vibe/skills/serde-mapping-owner."
+detect = "pub fn (iter|len|is_empty)\\(&self\\)"
+message = "méthode de délégation écrite à la main -> Deref la génère. Voir .vibe/skills/model-struct-owner."
 severity = "warning"
+exclude_files = []
 occurrences = [
-  { file = "crates/cpm-core/src/model/attribute.rs", lines = "23, 103, 112", since = "PR #3" },
+  { file = "crates/cpm-core/src/model/attribute.rs", lines = "94, 98, 134-144 (avant refactor)", since = "PR #3" },
 ]

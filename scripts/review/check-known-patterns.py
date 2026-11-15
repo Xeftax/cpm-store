@@ -57,7 +57,7 @@ def main() -> None:
     files = added_lines(base, ref)
     hits = 0
     for p in patterns:
-        rx = re.compile(p["regex"])
+        rx = re.compile(p["detect"])
         excluded = set(p.get("exclude_files", []))
         for f, lines in sorted(files.items()):
             if not fnmatch.fnmatch(f, p["scope"]) or f in excluded:
