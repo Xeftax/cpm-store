@@ -11,10 +11,16 @@ langage, descriptions alignées en colonne.
 
 import datetime
 import pathlib
+import shutil
 import subprocess
+from typing import Any
+
+# /usr/bin/env en littéral inline : S603/S607 n'acceptent que des exécutables littéraux.
+if shutil.which("git") is None:
+    raise SystemExit("git introuvable sur le PATH")
 
 ROOT = pathlib.Path(
-    subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip()
+    subprocess.check_output(["/usr/bin/env", "git", "rev-parse", "--show-toplevel"], text=True).strip()
 )
 OUT = ROOT / "docs" / "TREE.md"
 
@@ -27,12 +33,13 @@ SECTIONS = [
 
 
 def first_doc_line(path: pathlib.Path, marker: str) -> str:
+    """Première ligne du header de module (après `marker`), ou chaîne vide."""
     try:
-        with open(path, encoding="utf-8", errors="replace") as f:
-            for line in f:
-                line = line.rstrip("\n")
+        with path.open(encoding="utf-8", errors="replace") as f:
+            for raw_line in f:
+                line = raw_line.rstrip("\n")
                 if line.startswith(marker):
-                    return line[len(marker):].strip()
+                    return line[len(marker) :].strip()
                 if line.strip() and not line.startswith(marker):
                     return ""  # le header ne commence pas par le marqueur
     except OSError:
@@ -40,8 +47,9 @@ def first_doc_line(path: pathlib.Path, marker: str) -> str:
     return ""
 
 
-def build_tree(paths: list[str]) -> dict:
-    tree: dict = {}
+def build_tree(paths: list[str]) -> dict[str, Any]:
+    """Construit l'arbre imbriqué {dossier: {...}, fichier: None} depuis des chemins plats."""
+    tree: dict[str, Any] = {}
     for p in paths:
         parts = p.split("/")
         node = tree
@@ -51,7 +59,8 @@ def build_tree(paths: list[str]) -> dict:
     return tree
 
 
-def render(node: dict, prefix: str, lines: list[str], width: int) -> None:
+def render(node: dict[str, Any], prefix: str, lines: list[str], width: int) -> None:
+    """Aplati l'arbre en lignes indentées, dossiers d'abord, descriptions en colonne."""
     dirs = sorted(k for k, v in node.items() if isinstance(v, dict))
     files = sorted(k for k, v in node.items() if not isinstance(v, dict))
     for d in dirs:
@@ -62,15 +71,21 @@ def render(node: dict, prefix: str, lines: list[str], width: int) -> None:
         lines.append(f"{prefix}{fname:<{width}} — {desc if desc else '(no docstring)'}")
 
 
+def annotate(node: dict[str, Any], prefix: str, marker: str) -> None:
+    """Remplit chaque feuille de l'arbre avec la première ligne de doc du fichier."""
+    for k, v in list(node.items()):
+        if isinstance(v, dict):
+            annotate(v, prefix + k + "/", marker)
+        else:
+            node[k] = first_doc_line(ROOT / prefix / k, marker)
+
+
 def main() -> None:
-    all_files = subprocess.check_output(
-        ["git", "ls-files"], text=True, cwd=ROOT
-    ).splitlines()
+    """Régénère docs/TREE.md depuis `git ls-files` et les headers de chaque fichier."""
+    all_files = subprocess.check_output(["/usr/bin/env", "git", "ls-files"], text=True, cwd=ROOT).splitlines()
     # .vibe/ exclu : les skills/hooks sont déjà découverts par le harness (skill_paths),
     # TREE.md ne liste que le code et la doc du repo.
-    all_files = [
-        f for f in all_files if f != "docs/TREE.md" and not f.startswith(".vibe/")
-    ]
+    all_files = [f for f in all_files if f != "docs/TREE.md" and not f.startswith(".vibe/")]
 
     lines = [
         "# TREE — cpm-store",
@@ -83,23 +98,14 @@ def main() -> None:
         if not files:
             continue
         tree = build_tree(files)
-        for f in files:
-            pass
-        # descriptions
-        def annotate(node, prefix=""):
-            for k, v in list(node.items()):
-                if isinstance(v, dict):
-                    annotate(v, prefix + k + "/")
-                else:
-                    node[k] = first_doc_line(ROOT / prefix / k, marker)
-        annotate(tree)
+        annotate(tree, "", marker)
         width = max((len(pathlib.PurePath(f).name) for f in files), default=0)
         lines.append(f"# ── {title} ──")
         lines.append("")
         render(tree, "", lines, width)
         lines.append("")
 
-    stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    stamp = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     lines.insert(3, f"# Generated {stamp}")
     OUT.parent.mkdir(exist_ok=True)
     OUT.write_text("\n".join(lines) + "\n", encoding="utf-8")
