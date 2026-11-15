@@ -28,6 +28,12 @@ règles exécutables (known-patterns), sans bruit ni faux positifs. Cas d'école
 
 - DO noter un anti-pattern **dès la 1ère occurrence** — rien n'empêche qu'il se représente.
   (Seuil « signalé 2 fois » rejeté : la récurrence n'est pas un prérequis à la documentation.)
+- **ON NE SUPPRIME JAMAIS UNE RÈGLE.** Si elle ne marche plus : on l'édite/adapte (regex, scope),
+  ou on l'exclut par fichier via `exclude_files = [...]` dans le pattern (équivalent des
+  `#[allow(...)]` de lint), ou au pire soupape par ligne `// review: ignore <rule-id>`.
+  Une règle retirée du TOML perd son historique d'occurrences.
+- DO restreindre le `scope` à un seul fichier pendant une review progressive (ex. attribute.rs
+  d'abord, kind.rs ensuite) plutôt que de tout scope d'un coup et noyer de faux positifs.
 - DO indexer **toutes les occurrences** (fichier:ligne ou commit de première apparition), pas ce
   qui l'a remplacé : si la règle est modifiée/supprimée un jour, on doit pouvoir lister d'un coup
   toutes les parties du code concernées et vérifier que le changement de règle est justifiable
