@@ -40,7 +40,12 @@ règles exécutables (known-patterns), sans bruit ni faux positifs. Cas d'école
 - **Structure d'une règle = généralisation + signal, pas une regex isolée** : chaque pattern
   documente `rule` (le principe général), `applies_to`, `when_not_applicable` (exceptions
   documentées, jamais supprimées) et `detect` (la regex, simple signal de détection).
-  Ne pas écrire de regex ultra-spécifique à un seul objet sans documenter la généralisation.
+- **Commencer LARGE, resserrer ensuite.** Le `detect` vise le principe (ex. « toute struct
+  déclarée dans une fonction », « tout newtype à champ pub », « toute délégation `self.0.` »),
+  pas un objet précis (pas que `Vec`, pas que `Helper`, pas que `iter/len/is_empty`, pas que
+  `'de`). On resserre le scope/detect au fil des exemples, en documentant les exceptions dans
+  `when_not_applicable`. Il est plus facile de dire « ne s'applique pas à ce cas précis » que
+  de manquer un pattern parce que la regex était trop étroite.
 - DO indexer **toutes les occurrences** (fichier:ligne ou commit de première apparition), pas ce
   qui l'a remplacé : si la règle est modifiée/supprimée un jour, on doit pouvoir lister d'un coup
   toutes les parties du code concernées et vérifier que le changement de règle est justifiable
