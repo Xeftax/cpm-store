@@ -37,6 +37,10 @@ règles exécutables (known-patterns), sans bruit ni faux positifs. Cas d'école
 - **Un fichier ne va dans `exclude_files` qu'avec l'accord explicite de l'utilisateur.**
   Par défaut on garde les warnings : ils disparaissent quand la règle ou les fichiers sont
   fixés, pas en les cachant.
+- **Structure d'une règle = généralisation + signal, pas une regex isolée** : chaque pattern
+  documente `rule` (le principe général), `applies_to`, `when_not_applicable` (exceptions
+  documentées, jamais supprimées) et `detect` (la regex, simple signal de détection).
+  Ne pas écrire de regex ultra-spécifique à un seul objet sans documenter la généralisation.
 - DO indexer **toutes les occurrences** (fichier:ligne ou commit de première apparition), pas ce
   qui l'a remplacé : si la règle est modifiée/supprimée un jour, on doit pouvoir lister d'un coup
   toutes les parties du code concernées et vérifier que le changement de règle est justifiable
