@@ -5,6 +5,11 @@
 #   applies_to        = à quoi ça s'applique en général
 #   when_not_applicable = exceptions documentées (jamais supprimées)
 #   detect            = regex de détection (signal, pas la règle elle-même)
+#
+# Détection volontairement LARGE au début : on resserre ensuite (scope / detect /
+# when_not_applicable) au fil des exemples. Mieux vaut un warning de trop, qu'on écarte
+# en disant « ne s'applique pas à ce cas », qu'un pattern manqué parce que la regex était
+# trop étroite.
 #   occurrences       = toutes les occurrences connues (file/lines/since)
 #
 # Règles :
@@ -21,7 +26,7 @@ rule = "Un impl Serialize/Deserialize manuel + struct Helper n'est justifié que
 applies_to = "toute struct data mappée depuis/vers du JSON"
 when_not_applicable = "enum/newtype avec mapping custom de variantes (ex. MessageContext, MetadataFlag) : pas de Helper, impl manuel légitime"
 scope = "crates/**/*.rs"
-detect = "struct Helper"
+detect = "^\\s+struct \\w+ \\{"  # struct déclarée DANS une fonction = pattern Helper, quel que soit son nom
 message = "impl serde manuel + Helper avec conversion identité -> derive + #[serde(...)] sur le champ. Voir .vibe/skills/serde-mapping-owner."
 severity = "warning"
 exclude_files = []
@@ -35,7 +40,7 @@ rule = "Par défaut, dériver Serialize/Deserialize avec des attributs champ (#[
 applies_to = "tout type mappé en JSON"
 when_not_applicable = "enums/newtypes avec sérialisation custom de variantes (kind.rs MessageContext/Direction, flags.rs MetadataFlag/FlagList, search.rs RequestError) — impl manuel attendu, à valider au cas par cas"
 scope = "crates/**/*.rs"
-detect = "impl<'de> [Dd]eserialize<'de> for|impl Serialize for \\w+ \\{"
+detect = "impl.*[Ss]erialize.* for "  # tout impl serde manuel, quel que soit le lifetime ('de ou autre)
 message = "impl serde manuel : vérifier qu'un derive + attributs champ ne suffit pas. Voir .vibe/skills/serde-mapping-owner."
 severity = "warning"
 exclude_files = []
@@ -49,7 +54,7 @@ rule = "Un newtype choisit UN mode d'exposition : transparent (champ pub, accès
 applies_to = "tout newtype `struct X(pub Vec<T>)` ou wrapper de collection"
 when_not_applicable = "quand un invariant doit être vérifié à l'insertion (ex. unicité des noms REST-NMS §5.3.2.6) : champ privé, pas de DerefMut"
 scope = "crates/**/*.rs"
-detect = "pub struct \\w+\\(pub Vec<"
+detect = "pub struct \\w+\\(pub "  # tout newtype à champ pub, quel que soit le type interne (pas que Vec)
 message = "newtype pub + délégations manuelles = redondant. Choisir Deref (API générée, champ privé) ou pub sans délégations. Voir .vibe/skills/model-struct-owner."
 severity = "warning"
 exclude_files = []
@@ -63,7 +68,7 @@ rule = "Ne jamais écrire à la main une méthode qui est une pure délégation 
 applies_to = "tout newtype/wrapper qui expose l'API de son type interne"
 when_not_applicable = "méthodes avec logique métier ajoutée (ex. get case-insensitive §5.3.2.5) : les écrire à la main est correct"
 scope = "crates/**/*.rs"
-detect = "pub fn (iter|len|is_empty)\\(&self\\)"
+detect = "self\\.0\\."  # toute délégation explicite au champ interne .0, quelle que soit la méthode réécrite
 message = "méthode de délégation écrite à la main -> Deref la génère. Voir .vibe/skills/model-struct-owner."
 severity = "warning"
 exclude_files = []
