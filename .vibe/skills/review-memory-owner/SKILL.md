@@ -34,6 +34,9 @@ règles exécutables (known-patterns), sans bruit ni faux positifs. Cas d'école
   Une règle retirée du TOML perd son historique d'occurrences.
 - DO restreindre le `scope` à un seul fichier pendant une review progressive (ex. attribute.rs
   d'abord, kind.rs ensuite) plutôt que de tout scope d'un coup et noyer de faux positifs.
+- **Un fichier ne va dans `exclude_files` qu'avec l'accord explicite de l'utilisateur.**
+  Par défaut on garde les warnings : ils disparaissent quand la règle ou les fichiers sont
+  fixés, pas en les cachant.
 - DO indexer **toutes les occurrences** (fichier:ligne ou commit de première apparition), pas ce
   qui l'a remplacé : si la règle est modifiée/supprimée un jour, on doit pouvoir lister d'un coup
   toutes les parties du code concernées et vérifier que le changement de règle est justifiable
