@@ -62,7 +62,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo install cargo-deny --locked
+      # deny.toml (genere par dockyard) est compatible cargo-deny 0.20 : on epingle
+      # cette version, le latest ayant retire des cles de config (PR #611)
+      - run: cargo install cargo-deny --locked --version 0.20
       - run: scripts/ci/security-rust.sh
 
   gitleaks:
