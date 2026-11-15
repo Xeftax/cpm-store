@@ -133,3 +133,29 @@ exclude_files = []
 occurrences = [
   { file = "tools/review-check/src/main.rs", lines = "tout le fichier avant b1c0e83", since = "session review 2026-11-15, fixed in b1c0e83" },
 ]
+
+[[pattern]]
+id = "duplicate-fn-bodies"
+rule = "Deux fonctions/méthodes avec le même corps à un identifiant/literal près sont de la duplication -> factoriser (macro_rules!, trait, ou helper partagé). Détection par normalisation des tokens (idents -> I, literals -> S) + hash; seuil 12 tokens pour éviter le bruit."
+applies_to = "tout fichier .rs (toutes fonctions libres et méthodes d'impl)"
+when_not_applicable = "corps triviaux (< 12 tokens) : déjà couvert par manual-delegation-methods ; duplication intentionnelle de 2 lignes documentée au cas par cas"
+scope = "**/*.rs"
+message = "corps de fonction dupliqué (à un nom près) -> factoriser (macro/trait/helper). Cas d'école: message_context()/direction() dans attribute.rs (PR #3)."
+severity = "warning"
+exclude_files = []
+occurrences = [
+  { file = "crates/cpm-core/src/model/attribute.rs", lines = "122-132 (message_context/direction, avant refactor)", since = "PR #3" },
+]
+
+[[pattern]]
+id = "file-sections"
+rule = "Un fichier .rs de plus de 10 items sans aucune bannière de section (`// ==== Titre ====`) manque d'organisation thématique -> découper en sections (déclaration / constructeurs / lookup / accesseurs / serde / tests)."
+applies_to = "tout fichier .rs conséquent"
+when_not_applicable = "fichiers <= 10 items (trop petits pour mériter des sections) ; fichiers avec bannières existantes"
+scope = "**/*.rs"
+message = "fichier volumineux sans sections thématiques (// ==== ... ====) -> découper par thème."
+severity = "warning"
+exclude_files = []
+occurrences = [
+  { file = "crates/cpm-core/src/model/attribute.rs", lines = "avant refactor (pas de bannières)", since = "PR #3, fixed in PR #5" },
+]

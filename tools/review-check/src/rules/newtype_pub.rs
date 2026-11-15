@@ -11,7 +11,7 @@ impl Rule for NewtypePub {
         "newtype-pub-with-delegation"
     }
 
-    fn candidates(&self, ast: &syn::File) -> Vec<Candidate> {
+    fn candidates(&self, ast: &syn::File, _src: &str) -> Vec<Candidate> {
         structs(ast)
             .filter(|s| matches!(s.fields, Fields::Unnamed(_)))
             .map(|s| Candidate {

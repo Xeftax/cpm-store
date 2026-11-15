@@ -3,6 +3,8 @@
 //! un fichier dans `rules/` + une ligne dans `all()`.
 
 pub mod delegate_same_name;
+pub mod duplicate_fn_bodies;
+pub mod file_sections;
 pub mod helper_in_fn;
 pub mod main_rs_thin;
 pub mod manual_serde_impl;
@@ -20,7 +22,8 @@ pub struct Candidate {
 pub trait Rule {
     fn id(&self) -> &'static str;
     /// Tout le périmètre de la règle (conforme + violation) — sert au mode --audit.
-    fn candidates(&self, ast: &syn::File) -> Vec<Candidate>;
+    /// `src` = source du fichier (pour les règles qui lisent les commentaires, ex. sections).
+    fn candidates(&self, ast: &syn::File, src: &str) -> Vec<Candidate>;
 }
 
 /// Registre unique des règles.
@@ -31,6 +34,8 @@ pub fn all() -> Vec<Box<dyn Rule>> {
         Box::new(manual_serde_impl::ManualSerdeImpl),
         Box::new(delegate_same_name::DelegateSameName),
         Box::new(main_rs_thin::MainRsThin),
+        Box::new(duplicate_fn_bodies::DuplicateFnBodies),
+        Box::new(file_sections::FileSections),
     ]
 }
 
@@ -76,7 +81,7 @@ mod tests {
 
     fn violations(rule: &dyn Rule, src: &str) -> Vec<usize> {
         let ast = syn::parse_file(src).unwrap();
-        rule.candidates(&ast)
+        rule.candidates(&ast, src)
             .into_iter()
             .filter(|c| c.violation)
             .map(|c| c.line)
@@ -89,9 +94,11 @@ mod tests {
         assert_eq!(violations(&r, "pub struct A(pub Vec<u8>);"), vec![1]);
         // conforme : champ privé
         let ast = syn::parse_file("struct B(Vec<u8>);").unwrap();
-        assert!(r.candidates(&ast).iter().all(|c| !c.violation));
+        assert!(r.candidates(&ast, "struct B(Vec<u8>);").iter().all(|c| !c.violation));
         // hors périmètre : struct nommée
-        assert!(r.candidates(&syn::parse_file("struct C { x: u8 }").unwrap()).is_empty());
+        assert!(r
+            .candidates(&syn::parse_file("struct C { x: u8 }").unwrap(), "struct C { x: u8 }")
+            .is_empty());
     }
 
     #[test]
@@ -118,6 +125,36 @@ mod tests {
         );
         // impl de trait non-serde : hors périmètre
         assert!(violations(&r, "impl std::fmt::Debug for A {}").is_empty());
+    }
+
+    #[test]
+    fn duplicate_fn_bodies_flags_same_shape() {
+        let r = duplicate_fn_bodies::DuplicateFnBodies;
+        // message_context / direction : même corps à NOM/type près -> 2 violations
+        let src = r#"
+impl AttributeList {
+    fn message_context(&self) -> Option<MessageContext> {
+        self.first_value("Message-Context").map(MessageContext::parse)
+    }
+    fn direction(&self) -> Option<Direction> {
+        self.first_value("Direction").map(Direction::parse)
+    }
+    fn unique(&self) -> usize { self.0.len() * 2 + 1 }
+}
+"#;
+        let v = violations(&r, src);
+        assert_eq!(v.len(), 2, "les deux fns dupliquées doivent être flaguées: {v:?}");
+    }
+
+    #[test]
+    fn file_sections_flags_big_file_without_banners() {
+        let r = file_sections::FileSections;
+        let big = (0..12).map(|i| format!("fn f{i}() {{}}")).collect::<Vec<_>>().join("\n");
+        assert_eq!(violations(&r, &big).len(), 1);
+        let with_banner = format!("// ==== Section ====\n{big}");
+        assert!(violations(&r, &with_banner).is_empty());
+        let small = "fn a() {}\nfn b() {}".to_string();
+        assert!(violations(&r, &small).is_empty());
     }
 
     #[test]

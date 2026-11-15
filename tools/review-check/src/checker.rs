@@ -89,8 +89,11 @@ fn added_lines(root: &str, base: &str, refr: &str) -> HashMap<String, HashSet<us
 }
 
 pub fn scope_match(scope: &str, path: &str) -> bool {
-    // "**/main.rs" -> match sur le suffixe ; "crates/**/*.rs" -> préfixe + .rs
+    // "**/main.rs" -> suffixe ; "**/*.rs" -> wildcard '*' + extension
     if let Some(suffix) = scope.strip_prefix("**/") {
+        if let Some(ext) = suffix.strip_prefix('*') {
+            return path.ends_with(ext);
+        }
         return path.ends_with(suffix);
     }
     let prefix = scope
@@ -146,7 +149,7 @@ pub fn run(root: &str, cfg: &Config, base: &str, refr: &str, mode: &Mode) -> (Ve
             };
             let rule = rules::all().into_iter().find(|r| r.id() == p.id);
             let Some(rule) = rule else { continue };
-            for Candidate { line, violation } in rule.candidates(&ast) {
+            for Candidate { line, violation } in rule.candidates(&ast, &src) {
                 let in_diff = match mode {
                     Mode::All | Mode::Audit(_) | Mode::Watch => true,
                     Mode::Diff => added.get(path).map(|s| s.contains(&line)).unwrap_or(false),

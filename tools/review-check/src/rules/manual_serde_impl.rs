@@ -11,7 +11,7 @@ impl Rule for ManualSerdeImpl {
         "manual-serde-impl"
     }
 
-    fn candidates(&self, ast: &syn::File) -> Vec<Candidate> {
+    fn candidates(&self, ast: &syn::File, _src: &str) -> Vec<Candidate> {
         impls(ast)
             .filter(|imp| {
                 imp.trait_

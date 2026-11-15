@@ -12,7 +12,7 @@ impl Rule for MainRsThin {
         "main-rs-thin"
     }
 
-    fn candidates(&self, ast: &syn::File) -> Vec<Candidate> {
+    fn candidates(&self, ast: &syn::File, _src: &str) -> Vec<Candidate> {
         ast.items
             .iter()
             .map(|item| Candidate {
