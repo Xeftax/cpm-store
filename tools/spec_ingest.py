@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""Ingeste les PDF officiels des specs OMA CPM en markdown structure + images
-via l'API Mistral OCR (mistral-ocr-latest).
+"""Ingeste les PDF officiels des specs OMA CPM en markdown structuré via l'API Mistral OCR.
 
 Pourquoi : les copies markdown actuelles (docs/specs/*.md) viennent d'une
 conversion tierce (Xeftax/cpm-rag) avec pertes connues (hierarchie aplatie,
@@ -20,14 +19,50 @@ Alternative open-source locale si pas de cle API : docling (IBM)
 
 import argparse
 import base64
+import importlib
 import json
 import os
 import sys
 from pathlib import Path
+from typing import Protocol
 
 
-def ocr_pdf(client, pdf_path: Path):
-    with open(pdf_path, "rb") as f:
+class _UploadedFile(Protocol):
+    id: str
+
+
+class _SignedUrl(Protocol):
+    url: str
+
+
+class _FilesClient(Protocol):
+    def upload(self, file: dict[str, object]) -> _UploadedFile: ...
+
+    def get_signed_url(self, file_id: str) -> _SignedUrl: ...
+
+    def delete(self, file_id: str) -> object: ...
+
+
+class _OcrPage(Protocol):
+    markdown: str
+
+
+class _OcrResponse(Protocol):
+    pages: list[_OcrPage]
+
+
+class _OcrClient(Protocol):
+    def process(self, model: str, document: dict[str, str], include_image_base64: bool) -> _OcrResponse: ...
+
+
+class _MistralClient(Protocol):
+    files: _FilesClient
+    ocr: _OcrClient
+
+
+def ocr_pdf(client: _MistralClient, pdf_path: Path) -> _OcrResponse:
+    """Envoie le PDF à l'API Mistral OCR, nettoie l'upload, retourne la réponse OCR."""
+    with pdf_path.open("rb") as f:
         uploaded = client.files.upload(file={"file_name": pdf_path.name, "content": f})
     signed = client.files.get_signed_url(file_id=uploaded.id)
     resp = client.ocr.process(
@@ -40,6 +75,7 @@ def ocr_pdf(client, pdf_path: Path):
 
 
 def main() -> int:
+    """Point d'entrée : OCR de chaque PDF du --pdf-dir vers --out-dir."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--pdf-dir", required=True)
     ap.add_argument("--out-dir", required=True)
@@ -50,9 +86,10 @@ def main() -> int:
         print("ERREUR: MISTRAL_API_KEY non definie", file=sys.stderr)
         return 2
 
-    from mistralai import Mistral
-
-    client = Mistral(api_key=os.environ["MISTRAL_API_KEY"])
+    # import lazy via importlib : mistralai est une dépendance optionnelle (hors pyproject),
+    # le module doit rester importable sans elle (smoke tests).
+    mistralai_mod = importlib.import_module("mistralai")
+    client: _MistralClient = vars(mistralai_mod)["Mistral"](api_key=os.environ["MISTRAL_API_KEY"])
     pdf_dir, out_dir = Path(args.pdf_dir), Path(args.out_dir)
     pdfs = sorted(pdf_dir.glob("*.pdf"))
     if args.only:
@@ -66,7 +103,7 @@ def main() -> int:
         resp = ocr_pdf(client, pdf)
         dest = out_dir / pdf.stem
         (dest / "images").mkdir(parents=True, exist_ok=True)
-        pages_md = []
+        pages_md: list[str] = []
         n_images = 0
         for i, page in enumerate(resp.pages):
             pages_md.append(f"<!-- page {i + 1} -->\n\n{page.markdown}")
