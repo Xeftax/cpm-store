@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""Check des known-patterns (ADR 0001) sur un diff — WARNING ONLY, jamais bloquant.
+"""Check des known-patterns (ADR 0001) sur les LIGNES AJOUTÉES d'un diff — WARNING ONLY.
 
 Usage:
     python3 scripts/review/check-known-patterns.py [base] [ref]
 Défaut: base=main, ref=HEAD (diff de la branche courante).
-Lit .vibe/review/known-patterns.toml ; si ref est fourni, lit les fichiers via
-`git show ref:path` (permet de checker une PR distante, ex. origin/phase1/cpm-core).
+Ne matche que les lignes `+` du diff (pas les fichiers entiers) : un pattern déjà
+présent avant la PR ne ressort pas. Lit .vibe/review/known-patterns.toml.
 
-Règles (ADR 0001) : check sur le diff uniquement, severity warning, soupape
-`// review: ignore <rule-id>`, exit code toujours 0 (bloquant = compilateur/tests/clippy).
+Règles (ADR 0001) : severity warning, exit 0 toujours (bloquant = compilateur/tests/clippy),
+soupape `// review: ignore <rule-id>` sur la ligne, exclude_files verrouillé (accord
+utilisateur requis — voir review-memory-owner).
 """
 
 import fnmatch
@@ -24,41 +25,53 @@ ROOT = pathlib.Path(
 TOML = ROOT / ".vibe" / "review" / "known-patterns.toml"
 
 
-def read_lines(ref: str | None, path: str) -> list[str]:
-    if ref is None:
-        return (ROOT / path).read_text(encoding="utf-8", errors="replace").splitlines()
-    out = subprocess.run(
-        ["git", "show", f"{ref}:{path}"], cwd=ROOT, capture_output=True, text=True
+def added_lines(base: str, ref: str) -> dict[str, list[tuple[int, str]]]:
+    """Parse le diff et retourne {fichier: [(num_ligne_dans_le_nouveau_fichier, contenu)]}."""
+    diff = subprocess.check_output(
+        ["git", "diff", f"{base}...{ref}", "--", "*.rs"], cwd=ROOT, text=True
     )
-    return out.stdout.splitlines() if out.returncode == 0 else []
+    files: dict[str, list[tuple[int, str]]] = {}
+    cur: str | None = None
+    lineno = 0
+    for line in diff.splitlines():
+        if line.startswith("+++ b/"):
+            cur = line[6:]
+            files[cur] = []
+        elif line.startswith("@@"):
+            m = re.search(r"\+(\d+)", line)
+            lineno = int(m.group(1)) if m else 0
+        elif cur is not None:
+            if line.startswith("+") and not line.startswith("+++"):
+                files[cur].append((lineno, line[1:]))
+                lineno += 1
+            elif not line.startswith("-"):
+                lineno += 1
+    return files
 
 
 def main() -> None:
     base = sys.argv[1] if len(sys.argv) > 1 else "main"
     ref = sys.argv[2] if len(sys.argv) > 2 else "HEAD"
 
-    files = subprocess.check_output(
-        ["git", "diff", "--name-only", f"{base}...{ref}"], cwd=ROOT, text=True
-    ).splitlines()
-    rs_files = [f for f in files if f.endswith(".rs")]
-
     patterns = tomllib.loads(TOML.read_text(encoding="utf-8"))["pattern"]
+    files = added_lines(base, ref)
     hits = 0
     for p in patterns:
         rx = re.compile(p["regex"])
         excluded = set(p.get("exclude_files", []))
-        for f in rs_files:
+        for f, lines in sorted(files.items()):
             if not fnmatch.fnmatch(f, p["scope"]) or f in excluded:
                 continue
-            for i, line in enumerate(read_lines(None if ref == "HEAD" else ref, f), 1):
-                if rx.search(line) and f"review: ignore {p['id']}" not in line:
-                    print(f"warning[{p['id']}] {f}:{i}: {line.strip()}")
+            for lineno, content in lines:
+                if rx.search(content) and f"review: ignore {p['id']}" not in content:
+                    print(f"warning[{p['id']}] {f}:{lineno}: {content.strip()}")
                     print(f"    -> {p['message']}")
                     hits += 1
 
+    n_files = len(files)
     print(
-        f"\n{hits} known-pattern(s) en warning sur le diff {base}...{ref} "
-        f"({len(rs_files)} fichiers .rs) — exit 0 (warning only, ADR 0001)"
+        f"\n{hits} known-pattern(s) en warning sur les lignes ajoutées du diff "
+        f"{base}...{ref} ({n_files} fichiers .rs modifiés) — exit 0 (warning only, ADR 0001)"
     )
 
 
