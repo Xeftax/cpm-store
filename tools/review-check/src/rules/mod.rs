@@ -9,11 +9,13 @@ pub mod helper_in_fn;
 pub mod main_rs_thin;
 pub mod manual_serde_impl;
 pub mod newtype_pub;
+pub mod thematic_clusters;
 
 use syn::spanned::Spanned;
 use syn::{ImplItem, Item, ItemFn, ItemImpl, ItemStruct};
 
 /// Un item candidat, avec son statut.
+#[derive(Debug)]
 pub struct Candidate {
     pub line: usize,
     pub violation: bool,
@@ -36,6 +38,7 @@ pub fn all() -> Vec<Box<dyn Rule>> {
         Box::new(main_rs_thin::MainRsThin),
         Box::new(duplicate_fn_bodies::DuplicateFnBodies),
         Box::new(file_sections::FileSections),
+        Box::new(thematic_clusters::ThematicClusters),
     ]
 }
 
@@ -155,6 +158,29 @@ impl AttributeList {
         assert!(violations(&r, &with_banner).is_empty());
         let small = "fn a() {}\nfn b() {}".to_string();
         assert!(violations(&r, &small).is_empty());
+    }
+
+    #[test]
+    fn thematic_clusters_group_call_chains() {
+        let r = thematic_clusters::ThematicClusters;
+        // get -> values -> first_value -> message_context : une chaîne = un cluster de 4
+        let src = r#"
+impl L {
+    fn get(&self, n: &str) -> Option<u8> { self.0.iter().find(|a| *a == 1) }
+    fn values(&self, n: &str) -> Option<u8> { self.get(n).map(|a| a + 1) }
+    fn first_value(&self, n: &str) -> Option<u8> { self.values(n).map(|v| v + 2) }
+    fn message_context(&self) -> Option<u8> { self.first_value("x").map(|v| v + 3) }
+    fn lonely(&self) -> u8 { 42 }
+}
+"#;
+        let ast = syn::parse_file(src).unwrap();
+        let c = r.candidates(&ast, src);
+        assert_eq!(c.len(), 1, "un seul cluster de taille >= 3: {c:?}");
+        assert!(c[0].violation, "pas de bannière // ==== au-dessus -> violation");
+        // avec une bannière au-dessus -> conforme
+        let with_banner = format!("// ==== Lookup ====\n{src}");
+        let ast2 = syn::parse_file(&with_banner).unwrap();
+        assert!(r.candidates(&ast2, &with_banner).iter().all(|c| !c.violation));
     }
 
     #[test]

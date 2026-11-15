@@ -8,7 +8,7 @@ publish = false
 [workspace]
 
 [dependencies]
-syn = { version = "2", features = ["full", "parsing", "printing", "extra-traits"] }
+syn = { version = "2", features = ["full", "parsing", "printing", "extra-traits", "visit"] }
 proc-macro2 = { version = "1", features = ["span-locations"] }
 quote = "1"
 toml = "0.8"

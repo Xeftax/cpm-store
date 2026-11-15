@@ -159,3 +159,16 @@ exclude_files = []
 occurrences = [
   { file = "crates/cpm-core/src/model/attribute.rs", lines = "avant refactor (pas de bannières)", since = "PR #3, fixed in PR #5" },
 ]
+
+[[pattern]]
+id = "thematic-clusters"
+rule = "Le sémantique « qui va ensemble » = le graphe d'appels intra-fichier : une fonction qui appelle une autre fonction du même fichier crée une arête (union-find). Une composante connexe de >= 3 fonctions est un groupe thématique ; s'il n'a pas de bannière `// ====` au-dessus, le fichier manque de sections -> violation."
+applies_to = "tout fichier .rs avec plusieurs fonctions interconnectées"
+when_not_applicable = "clusters déjà sous une bannière de section ; fonctions orphelines isolées (taille < 3)"
+scope = "**/*.rs"
+message = "cluster de fonctions liées par appels (graphe intra-fichier) sans bannière // ==== au-dessus -> créer une section thématique. Ex: get->values->first_value->message_context (attribute.rs PR #3)."
+severity = "warning"
+exclude_files = []
+occurrences = [
+  { file = "crates/cpm-core/src/model/attribute.rs", lines = "60-132 (lookup + accesseurs typés, avant refactor)", since = "PR #3, fixed in PR #5" },
+]
