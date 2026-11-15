@@ -4,6 +4,7 @@
 
 pub mod delegate_same_name;
 pub mod helper_in_fn;
+pub mod main_rs_thin;
 pub mod manual_serde_impl;
 pub mod newtype_pub;
 
@@ -29,6 +30,7 @@ pub fn all() -> Vec<Box<dyn Rule>> {
         Box::new(helper_in_fn::HelperInFn),
         Box::new(manual_serde_impl::ManualSerdeImpl),
         Box::new(delegate_same_name::DelegateSameName),
+        Box::new(main_rs_thin::MainRsThin),
     ]
 }
 
@@ -116,6 +118,17 @@ mod tests {
         );
         // impl de trait non-serde : hors périmètre
         assert!(violations(&r, "impl std::fmt::Debug for A {}").is_empty());
+    }
+
+    #[test]
+    fn main_rs_thin_flags_definitions_in_main() {
+        let r = main_rs_thin::MainRsThin;
+        // violation : struct + impl dans main.rs
+        let src = "mod x;\nfn main() {}\nstruct Config { a: u8 }\nimpl Config {}\n";
+        assert_eq!(violations(&r, src).len(), 2);
+        // conforme : CLI mince (mod + fn main uniquement)
+        let ok = "mod checker;\nfn main() {}\n";
+        assert!(violations(&r, ok).is_empty());
     }
 
     #[test]

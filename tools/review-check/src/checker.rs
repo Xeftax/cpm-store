@@ -89,6 +89,10 @@ fn added_lines(root: &str, base: &str, refr: &str) -> HashMap<String, HashSet<us
 }
 
 pub fn scope_match(scope: &str, path: &str) -> bool {
+    // "**/main.rs" -> match sur le suffixe ; "crates/**/*.rs" -> préfixe + .rs
+    if let Some(suffix) = scope.strip_prefix("**/") {
+        return path.ends_with(suffix);
+    }
     let prefix = scope
         .trim_end_matches("**/*.rs")
         .trim_end_matches("**/*")
@@ -106,7 +110,7 @@ pub fn load_config(root: &str) -> Config {
 pub fn run(root: &str, cfg: &Config, base: &str, refr: &str, mode: &Mode) -> (Vec<Finding>, usize) {
     let added = added_lines(root, base, refr);
     let files: Vec<String> = match mode {
-        Mode::All => {
+        Mode::All | Mode::Audit(_) => {
             let mut v: Vec<String> = git(root, &["ls-files", "*.rs"])
                 .lines()
                 .map(String::from)
