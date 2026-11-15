@@ -11,10 +11,10 @@ crates séparés, `Result` à chaque frontière) :
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  cpm-core   domain + PORTS — pur : aucune I/O, pas d'unsafe   │
+│  cpm-core   domain + PORTS — pur : aucune I/O, pas d'unsafe  │
 │  model/     Object, Folder, flags, SyncState, mapping ids    │
 │  ports/     traits : StoreBackend, MessageStorage,           │
-│             SyncStateStore                                    │
+│             SyncStateStore                                   │
 │  error.rs   CpmError — Result<T, CpmError> partout           │
 └───────────▲──────────────────────────────────────────────────┘
             │ port StoreBackend            │ ports MessageStorage + SyncStateStore
@@ -28,9 +28,9 @@ crates séparés, `Result` à chaque frontière) :
    └──────────┬────────────┘               │
               ▼                            │
         ┌────────────┐  port MessageCodec  │
-        │ cpm-client │ ───────────────► ┌─┴────────┐
-        │ moteur de  │                   │ cpm-msg  │ (CPIM / MIME)
-        │ synchro,   │                   └──────────┘
+        │ cpm-client │ ───────────────► ┌──┴───────┐
+        │ moteur de  │                  │ cpm-msg  │ (CPIM / MIME)
+        │ synchro,   │                  └──────────┘
         │ binding-   │
         │ agnostic   │
         └─────┬──────┘
