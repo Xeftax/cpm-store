@@ -15,8 +15,11 @@ prouvable**, sans faux positifs qui noieraient le reviewer.
 
 1. **Known-patterns déterministes uniquement** : `.vibe/review/known-patterns.toml`
    (un pattern = `id`, `scope` glob, `regex`, `message`, `severity`, `occurrences[]`) +
-   `scripts/review/check-known-patterns.sh` (~30 lignes de grep), lancé **sur le diff de la PR**
-   uniquement, branché dans le pipeline de review existant.
+   `scripts/review/check-known-patterns.py`, lancé **sur le diff de la PR** uniquement,
+   branché dans le pipeline de review existant. Preuve : sur le diff de la PR #3, les 2
+   patterns retenus ressortent en warning (attribute.rs:26, 53, 115) ; sur le diff du
+   refactor (PR #5), 0 hit. Un 3e pattern (`manual-serde-impl`) a été testé puis retiré :
+   11 faux positifs sur des impls légitimes d'enums — commenté dans le TOML.
 2. **Sévérité `warning` pour tout pattern de style/design — jamais de hard gate.** Le reviewer
    est un LLM qui lit tous les warnings (et peut faire des passes dédiées) ; un humain les
    ignorerait. Le **bloquant reste réservé au fonctionnel** : compilateur, tests, `clippy -D`.
