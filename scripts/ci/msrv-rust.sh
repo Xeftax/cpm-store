@@ -17,10 +17,12 @@ if command -v rustup > /dev/null; then
   # `cargo +<toolchain>` only works when cargo IS rustup's shim; a Homebrew cargo rejects
   # it, so drive the pinned toolchain through rustup explicitly.
   rustup toolchain install "$msrv" --profile minimal
-  rustup run "$msrv" cargo check --workspace
+  # --locked: the committed Cargo.lock is the MSRV source of truth; without it cargo
+  # re-resolves and may pick deps whose rust-version exceeds the MSRV (encoding_rs 0.8.44…)
+  rustup run "$msrv" cargo check --workspace --locked
 else
   # No rustup on this machine (Homebrew cargo, say): check with the installed toolchain.
   # The pin itself is enforced where rustup exists — CI installs it in the setup branch.
   echo "no rustup: checking with the installed toolchain against MSRV $msrv" >&2
-  cargo check --workspace
+  cargo check --workspace --locked
 fi

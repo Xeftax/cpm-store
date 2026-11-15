@@ -13,6 +13,7 @@ harnesses = ["vibe"]
 # `dockyard sync` ne les réintroduise pas.
 decline = [
   "deny.toml",
+  "scripts/ci/msrv-rust.sh",
   ".github/workflows/board.yml",
   ".github/workflows/brand-lint.yml",
   ".github/workflows/ci.yml",
