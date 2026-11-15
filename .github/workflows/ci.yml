@@ -69,5 +69,8 @@ jobs:
     name: secret scan (gitleaks, binaire vérifié par le script)
     runs-on: ubuntu-latest
     steps:
+      # historique complet : secret-scan.sh scanne tous les commits
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - run: scripts/ci/secret-scan.sh
