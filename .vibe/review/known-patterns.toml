@@ -120,3 +120,16 @@ exclude_files = []
 occurrences = [
   { file = "crates/cpm-core/src/model/attribute.rs", lines = "94, 98, 134-144 (avant refactor)", since = "PR #3" },
 ]
+
+[[pattern]]
+id = "main-rs-thin"
+rule = "Un fichier main.rs reste un CLI mince : uniquement `mod x;`, `use`, `fn main` et petites fns CLI. Toute définition (struct/enum/trait/impl/mod inline) part dans un module dédié."
+applies_to = "tout fichier nommé main.rs"
+when_not_applicable = "binaire minuscule où tout tient en quelques lignes (reste un warning, à écarter au cas par cas)"
+scope = "**/main.rs"
+message = "main.rs contient des définitions de types/logique -> déplacer dans un module (mod x;) et garder main.rs mince. Cas d'école : le main.rs monolithique de review-check avant son découpage (fix commit b1c0e83)."
+severity = "warning"
+exclude_files = []
+occurrences = [
+  { file = "tools/review-check/src/main.rs", lines = "tout le fichier avant b1c0e83", since = "session review 2026-11-15, fixed in b1c0e83" },
+]
