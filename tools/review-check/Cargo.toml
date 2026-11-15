@@ -1,0 +1,14 @@
+[package]
+name = "review-check"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# crate outil indépendante, hors du workspace cpm-*
+[workspace]
+
+[dependencies]
+syn = { version = "2", features = ["full", "parsing", "printing", "extra-traits"] }
+proc-macro2 = { version = "1", features = ["span-locations"] }
+toml = "0.8"
+serde = { version = "1", features = ["derive"] }

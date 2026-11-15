@@ -15,7 +15,7 @@ prouvable**, sans faux positifs qui noieraient le reviewer.
 
 1. **Known-patterns déterministes uniquement** : `.vibe/review/known-patterns.toml`
    (un pattern = `id`, `scope` glob, `regex`, `message`, `severity`, `occurrences[]`) +
-   `scripts/review/check-known-patterns.py`, lancé **sur le diff de la PR** uniquement,
+   `tools/review-check (binaire Rust, AST via syn)`, lancé **sur le diff de la PR** uniquement,
    branché dans le pipeline de review existant. Preuve : sur le diff de la PR #3, les 2
    patterns retenus ressortent en warning (attribute.rs:26, 53, 115) ; sur le diff du
    refactor (PR #5), 0 hit. Un 3e pattern (`manual-serde-impl`) a été testé puis retiré :

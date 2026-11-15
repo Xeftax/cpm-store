@@ -4,12 +4,15 @@
 #   rule              = la GÉNÉRALISATION (le principe, pas un cas isolé)
 #   applies_to        = à quoi ça s'applique en général
 #   when_not_applicable = exceptions documentées (jamais supprimées)
-#   detect            = regex de détection (signal, pas la règle elle-même)
+#   La DÉTECTION est du code déterministe dans tools/review-check (AST via syn),
+#   pas une regex : chaque id ci-dessous = une fonction du linter (comme un lint clippy).
+#   rule/applies_to/when_not_applicable/bad_example/good_example/occurrences = DOC
+#   (debug, lecture LLM, suivi) — ne remplace PAS la règle exécutable.
 #
-# Détection volontairement LARGE au début : on resserre ensuite (scope / detect /
-# when_not_applicable) au fil des exemples. Mieux vaut un warning de trop, qu'on écarte
-# en disant « ne s'applique pas à ce cas », qu'un pattern manqué parce que la regex était
-# trop étroite.
+# Détection volontairement LARGE au début (la règle AST du linter matche le principe,
+# pas un objet précis) : on resserre ensuite (scope / when_not_applicable) au fil des
+# exemples. Mieux vaut un warning de trop, qu'on écarte en disant « ne s'applique pas à ce
+# cas », qu'un pattern manqué parce que la règle était trop étroite.
 #   occurrences       = toutes les occurrences connues (file/lines/since)
 #
 # Règles :
@@ -26,8 +29,25 @@ rule = "Un impl Serialize/Deserialize manuel + struct Helper n'est justifié que
 applies_to = "toute struct data mappée depuis/vers du JSON"
 when_not_applicable = "enum/newtype avec mapping custom de variantes (ex. MessageContext, MetadataFlag) : pas de Helper, impl manuel légitime"
 scope = "crates/**/*.rs"
-detect = "^\\s+struct \\w+ \\{"  # struct déclarée DANS une fonction = pattern Helper, quel que soit son nom
 message = "impl serde manuel + Helper avec conversion identité -> derive + #[serde(...)] sur le champ. Voir .vibe/skills/serde-mapping-owner."
+bad_example = """
+impl<'de> Deserialize<'de> for Attribute {
+    fn deserialize<D>(d: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        struct Helper { name: String, value: Vec<String> }   // recopie identité
+        let h = Helper::deserialize(d)?;
+        Ok(Attribute { name: h.name, value: h.value })
+    }
+}
+"""
+good_example = """
+#[derive(Deserialize)]
+pub struct Attribute {
+    pub name: String,
+    #[serde(default, deserialize_with = "super::one_or_many")]
+    pub value: Vec<String>,
+}
+"""
 severity = "warning"
 exclude_files = []
 occurrences = [
@@ -40,8 +60,18 @@ rule = "Par défaut, dériver Serialize/Deserialize avec des attributs champ (#[
 applies_to = "tout type mappé en JSON"
 when_not_applicable = "enums/newtypes avec sérialisation custom de variantes (kind.rs MessageContext/Direction, flags.rs MetadataFlag/FlagList, search.rs RequestError) — impl manuel attendu, à valider au cas par cas"
 scope = "crates/**/*.rs"
-detect = "impl.*[Ss]erialize.* for "  # tout impl serde manuel, quel que soit le lifetime ('de ou autre)
 message = "impl serde manuel : vérifier qu'un derive + attributs champ ne suffit pas. Voir .vibe/skills/serde-mapping-owner."
+bad_example = """
+impl<'de> Deserialize<'de> for Foo { /* ... */ }  // sans raison de transformation
+"""
+good_example = """
+#[derive(Deserialize)]
+pub struct Foo {
+    #[serde(default, deserialize_with = "super::one_or_many", rename = "fooBar")]
+    pub field: Vec<String>,
+}
+// impl manuel réservé aux enums/newtypes à mapping custom (ex. MessageContext)
+"""
 severity = "warning"
 exclude_files = []
 occurrences = [
@@ -54,8 +84,16 @@ rule = "Un newtype choisit UN mode d'exposition : transparent (champ pub, accès
 applies_to = "tout newtype `struct X(pub Vec<T>)` ou wrapper de collection"
 when_not_applicable = "quand un invariant doit être vérifié à l'insertion (ex. unicité des noms REST-NMS §5.3.2.6) : champ privé, pas de DerefMut"
 scope = "crates/**/*.rs"
-detect = "pub struct \\w+\\(pub "  # tout newtype à champ pub, quel que soit le type interne (pas que Vec)
 message = "newtype pub + délégations manuelles = redondant. Choisir Deref (API générée, champ privé) ou pub sans délégations. Voir .vibe/skills/model-struct-owner."
+bad_example = """
+pub struct AttributeList(pub Vec<Attribute>);   // transparent
+impl AttributeList { pub fn len(&self) -> usize { self.0.len() } }  // ET délégations = mélange
+"""
+good_example = """
+pub struct AttributeList { attribute: Vec<Attribute> }   // champ privé, struct nommée
+impl Deref for AttributeList { type Target = Vec<Attribute>; fn deref(&self) -> &Self::Target { &self.attribute } }
+impl From<Vec<Attribute>> for AttributeList { /* ... */ }
+"""
 severity = "warning"
 exclude_files = []
 occurrences = [
@@ -68,8 +106,15 @@ rule = "Ne jamais écrire à la main une méthode qui est une pure délégation 
 applies_to = "tout newtype/wrapper qui expose l'API de son type interne"
 when_not_applicable = "méthodes avec logique métier ajoutée (ex. get case-insensitive §5.3.2.5) : les écrire à la main est correct"
 scope = "crates/**/*.rs"
-detect = "self\\.0\\."  # toute délégation explicite au champ interne .0, quelle que soit la méthode réécrite
-message = "méthode de délégation écrite à la main -> Deref la génère. Voir .vibe/skills/model-struct-owner."
+message = "méthode réécrite à la main qui ne fait que déléguer à la méthode de même nom de l'inner -> Deref la génère. Voir .vibe/skills/model-struct-owner."
+bad_example = """
+pub fn len(&self) -> usize { self.0.len() }   // réécrit à la main
+pub fn iter(&self) -> impl Iterator<Item = &T> { self.0.iter() }
+"""
+good_example = """
+impl Deref for X { type Target = Vec<T>; fn deref(&self) -> &Self::Target { &self.0 } }
+// x.len(), x.iter() ... disponibles sans rien écrire
+"""
 severity = "warning"
 exclude_files = []
 occurrences = [

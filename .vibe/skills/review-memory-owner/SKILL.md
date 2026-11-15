@@ -37,15 +37,15 @@ règles exécutables (known-patterns), sans bruit ni faux positifs. Cas d'école
 - **Un fichier ne va dans `exclude_files` qu'avec l'accord explicite de l'utilisateur.**
   Par défaut on garde les warnings : ils disparaissent quand la règle ou les fichiers sont
   fixés, pas en les cachant.
-- **Structure d'une règle = généralisation + signal, pas une regex isolée** : chaque pattern
-  documente `rule` (le principe général), `applies_to`, `when_not_applicable` (exceptions
-  documentées, jamais supprimées) et `detect` (la regex, simple signal de détection).
-- **Commencer LARGE, resserrer ensuite.** Le `detect` vise le principe (ex. « toute struct
-  déclarée dans une fonction », « tout newtype à champ pub », « toute délégation `self.0.` »),
-  pas un objet précis (pas que `Vec`, pas que `Helper`, pas que `iter/len/is_empty`, pas que
-  `'de`). On resserre le scope/detect au fil des exemples, en documentant les exceptions dans
-  `when_not_applicable`. Il est plus facile de dire « ne s'applique pas à ce cas précis » que
-  de manquer un pattern parce que la regex était trop étroite.
+- **La détection est du CODE déterministe, pas une regex ni de la prose** : chaque règle est
+  une fonction AST dans `tools/review-check` (parse `syn`, comme un lint clippy), exécutée
+  par le checker. Le TOML (`known-patterns.toml`) ne fournit que la config (id, scope,
+  severity, exclude_files, message, occurrences) + la DOC (`rule`, `applies_to`,
+  `when_not_applicable`, `bad_example`, `good_example`) pour le debug et la lecture LLM —
+  la doc ne remplace jamais la règle exécutable.
+- **Commencer LARGE, resserrer ensuite.** La règle AST matche le principe (ex. « tout newtype
+  à champ pub, quel que soit l'inner », « toute méthode `fn foo(&self) { self.x.foo(..) }` »),
+  pas un objet précis. On resserre au fil des exemples via `when_not_applicable`.
 - DO indexer **toutes les occurrences** (fichier:ligne ou commit de première apparition), pas ce
   qui l'a remplacé : si la règle est modifiée/supprimée un jour, on doit pouvoir lister d'un coup
   toutes les parties du code concernées et vérifier que le changement de règle est justifiable
