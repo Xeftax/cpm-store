@@ -5,8 +5,13 @@
 //! ne fournit que la config (id, scope, severity, exclude_files, message, occurrences) ;
 //! rule/applies_to/when_not_applicable/bad_example/good_example y sont de la DOC.
 //!
-//! Usage: review-check [base] [ref]   (défaut: main HEAD)
-//! Check uniquement les items dont la ligne de début est une ligne AJOUTÉE du diff.
+//! Usage:
+//!   review-check [base] [ref]                 check des lignes AJOUTÉES du diff (défaut: main HEAD)
+//!   review-check --all [base] [ref]           check de TOUS les fichiers (audit complet)
+//!   review-check --audit=<rule-id> [base] [ref]  liste tout le périmètre de la règle,
+//!                                             avec statut ok/violation (réversibilité)
+//!   --format=gcc                              sortie problemMatcher VS Code:
+//!                                             path:line:1: warning: message (rule-id)
 //! Toujours exit 0 (warning only — bloquant = compilateur/tests/clippy, ADR 0001).
 
 use std::collections::{HashMap, HashSet};
@@ -36,6 +41,13 @@ struct Pattern {
     // occurrences) : ignorés par le checker, lus par les humains/LLM.
 }
 
+#[derive(PartialEq)]
+enum Mode {
+    Diff,
+    All,
+    Audit(String),
+}
+
 fn git(root: &str, args: &[&str]) -> String {
     let out = Command::new("git")
         .args(args)
@@ -57,7 +69,7 @@ fn added_lines(root: &str, base: &str, refr: &str) -> HashMap<String, HashSet<us
             map.insert(p.to_string(), HashSet::new());
         } else if line.starts_with("@@") {
             lineno = line
-                .split("+")
+                .split('+')
                 .nth(1)
                 .and_then(|s| s.split(',').next())
                 .and_then(|n| n.parse().ok())
@@ -77,7 +89,6 @@ fn added_lines(root: &str, base: &str, refr: &str) -> HashMap<String, HashSet<us
 }
 
 fn scope_match(scope: &str, path: &str) -> bool {
-    // "crates/**/*.rs" -> préfixe "crates/" + suffixe ".rs"
     let prefix = scope
         .trim_end_matches("**/*.rs")
         .trim_end_matches("**/*")
@@ -90,125 +101,175 @@ fn line_of<T: Spanned>(node: &T) -> usize {
 }
 
 // ── Règles déterministes (AST) ──────────────────────────────────────────────
+//
+// Chaque règle = une fonction `candidates` qui retourne TOUS les items du périmètre
+// avec un statut : true = violation, false = conforme. Le mode diff/all n'émet que les
+// violations ; le mode --audit liste tout le périmètre avec son statut (réversibilité :
+// pour changer une règle, on voit partout où elle s'applique, conforme ou non).
 
-/// newtype-pub-with-delegation : struct tuple avec au moins un champ `pub`.
 fn is_newtype_pub(s: &ItemStruct) -> bool {
-    matches!(s.fields, Fields::Unnamed(_))
-        && s.fields
+    s.fields
+        .iter()
+        .any(|f| matches!(f.vis, Visibility::Public(_)))
+}
+
+fn rule_candidates(id: &str, ast: &syn::File) -> Vec<(usize, bool)> {
+    match id {
+        // périmètre = tous les tuple structs ; violation si champ pub
+        "newtype-pub-with-delegation" => ast
+            .items
             .iter()
-            .any(|f| matches!(f.vis, Visibility::Public(_)))
-}
-
-/// manual-serde-impl : bloc impl d'un trait dont le nom contient "Serialize".
-fn is_manual_serde_impl(imp: &ItemImpl) -> bool {
-    imp.trait_
-        .as_ref()
-        .and_then(|(_, path, _)| path.segments.last())
-        .map(|seg| seg.ident.to_string().contains("Serialize"))
-        .unwrap_or(false)
-}
-
-/// serde-helper-identity : une struct déclarée DANS le bloc d'une fonction.
-fn has_helper_struct_in_fn(ast: &syn::File) -> Vec<usize> {
-    let mut lines = Vec::new();
-    for item in &ast.items {
-        if let Item::Fn(f) = item {
-            for stmt in &f.block.stmts {
-                if let Stmt::Item(Item::Struct(s)) = stmt {
-                    lines.push((line_of(&s.ident), s.ident.to_string()));
+            .filter_map(|it| match it {
+                Item::Struct(s) if matches!(s.fields, Fields::Unnamed(_)) => {
+                    Some((line_of(&s.ident), is_newtype_pub(s)))
+                }
+                _ => None,
+            })
+            .collect(),
+        // périmètre = toutes les fonctions ; violation si struct déclarée dedans
+        "serde-helper-identity" => {
+            let mut out = Vec::new();
+            for item in &ast.items {
+                if let Item::Fn(f) = item {
+                    let has = f
+                        .block
+                        .stmts
+                        .iter()
+                        .any(|s| matches!(s, Stmt::Item(Item::Struct(_))));
+                    out.push((line_of(&f.sig.ident), has));
                 }
             }
+            out
         }
-    }
-    lines.iter().map(|(l, _)| *l).collect()
-}
-
-/// manual-delegation-methods : méthode `fn foo(&self) { self.<inner>.foo(...) }`
-/// (corps = un seul appel de méthode de MEME NOM sur le champ interne).
-fn delegate_same_name_lines(ast: &syn::File) -> Vec<usize> {
-    let mut lines = Vec::new();
-    for item in &ast.items {
-        if let Item::Impl(imp) = item {
-            for sub in &imp.items {
-                if let syn::ImplItem::Fn(m) = sub {
-                    if m.block.stmts.len() == 1 {
-                        if let Stmt::Expr(Expr::MethodCall(mc), None) = &m.block.stmts[0] {
-                            let receiver_is_self_field = matches!(
-                                &*mc.receiver,
-                                Expr::Field(f)
-                                    if matches!(&*f.base, Expr::Path(p) if p.path.is_ident("self"))
-                            );
-                            if receiver_is_self_field && mc.method == m.sig.ident {
-                                lines.push(line_of(&m.sig.ident));
-                            }
+        // périmètre = tous les impls de traits Serialize ; violation = à vérifier
+        "manual-serde-impl" => ast
+            .items
+            .iter()
+            .filter_map(|it| match it {
+                Item::Impl(imp)
+                    if imp
+                        .trait_
+                        .as_ref()
+                        .and_then(|(_, path, _)| path.segments.last())
+                        .map(|seg| seg.ident.to_string().contains("Serialize"))
+                        .unwrap_or(false) =>
+                {
+                    Some((line_of(imp), true))
+                }
+                _ => None,
+            })
+            .collect(),
+        // périmètre = toutes les méthodes d'impl ; violation si délégation same-name
+        "manual-delegation-methods" => {
+            let mut out = Vec::new();
+            for item in &ast.items {
+                if let Item::Impl(imp) = item {
+                    for sub in &imp.items {
+                        if let syn::ImplItem::Fn(m) = sub {
+                            let delegates = m.block.stmts.len() == 1
+                                && matches!(&m.block.stmts[0], Stmt::Expr(Expr::MethodCall(mc), None)
+                                    if matches!(&*mc.receiver, Expr::Field(f)
+                                        if matches!(&*f.base, Expr::Path(p) if p.path.is_ident("self")))
+                                    && mc.method == m.sig.ident);
+                            out.push((line_of(&m.sig.ident), delegates));
                         }
                     }
                 }
             }
+            out
         }
+        _ => Vec::new(),
     }
-    lines
 }
 
 fn main() {
-    let args: Vec<String> = std::env::args().collect();
-    let base = args.get(1).map(String::as_str).unwrap_or("main");
-    let refr = args.get(2).map(String::as_str).unwrap_or("HEAD");
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let mut mode = Mode::Diff;
+    let mut gcc = false;
+    let mut positional: Vec<&str> = Vec::new();
+    for a in &args {
+        if a == "--format=gcc" {
+            gcc = true;
+        } else if a == "--all" {
+            mode = Mode::All;
+        } else if let Some(id) = a.strip_prefix("--audit=") {
+            mode = Mode::Audit(id.to_string());
+        } else {
+            positional.push(a);
+        }
+    }
+    let base = positional.first().copied().unwrap_or("main");
+    let refr = positional.get(1).copied().unwrap_or("HEAD");
 
     let root = git(".", &["rev-parse", "--show-toplevel"]).trim().to_string();
     let cfg_path = Path::new(&root).join(".vibe/review/known-patterns.toml");
     let cfg: Config = toml::from_str(&fs::read_to_string(&cfg_path).expect("known-patterns.toml"))
         .expect("parse known-patterns.toml");
 
-    let files = added_lines(&root, base, refr);
-    let mut hits = 0usize;
+    let added = added_lines(&root, base, refr);
+    let files: Vec<String> = if mode == Mode::All {
+        git(&root, &["ls-files", "*.rs"]).lines().map(String::from).collect()
+    } else {
+        let mut v: Vec<String> = added.keys().cloned().collect();
+        v.sort();
+        v
+    };
 
-    for (path, added) in &files {
-        let src = git(&root, &["show", &format!("{refr}:{path}")]);
-        let ast = match syn::parse_file(&src) {
-            Ok(a) => a,
-            Err(_) => continue,
-        };
+    let mut hits = 0usize;
+    for path in &files {
         for p in &cfg.pattern {
             if !scope_match(&p.scope, path) || p.exclude_files.iter().any(|e| e == path) {
                 continue;
             }
-            let rule_lines: Vec<usize> = match p.id.as_str() {
-                "newtype-pub-with-delegation" => ast
-                    .items
-                    .iter()
-                    .filter_map(|it| match it {
-                        Item::Struct(s) if is_newtype_pub(s) => Some(line_of(&s.ident)),
-                        _ => None,
-                    })
-                    .collect(),
-                "manual-serde-impl" => ast
-                    .items
-                    .iter()
-                    .filter_map(|it| match it {
-                        Item::Impl(imp) if is_manual_serde_impl(imp) => Some(line_of(imp)),
-                        _ => None,
-                    })
-                    .collect(),
-                "serde-helper-identity" => has_helper_struct_in_fn(&ast),
-                "manual-delegation-methods" => delegate_same_name_lines(&ast),
-                _ => continue,
+            let in_audit = matches!(&mode, Mode::Audit(id) if id == &p.id);
+            if matches!(&mode, Mode::Audit(id) if id != &p.id) {
+                continue;
+            }
+            let src = if mode == Mode::All {
+                fs::read_to_string(Path::new(&root).join(path)).unwrap_or_default()
+            } else {
+                git(&root, &["show", &format!("{refr}:{path}")])
             };
-            for line in rule_lines {
-                if !added.contains(&line) {
-                    continue; // que les items ajoutés par le diff
+            let ast = match syn::parse_file(&src) {
+                Ok(a) => a,
+                Err(_) => continue,
+            };
+            for (line, violation) in rule_candidates(&p.id, &ast) {
+                let in_diff = mode == Mode::All || added.get(path).map(|s| s.contains(&line)).unwrap_or(false);
+                let emit = match &mode {
+                    Mode::Diff => violation && in_diff,
+                    Mode::All => violation,
+                    Mode::Audit(_) => true, // tout le périmètre, avec statut
+                };
+                if !emit {
+                    continue;
                 }
                 let snippet = src.lines().nth(line - 1).unwrap_or("").trim();
-                println!("warning[{}] {}:{}: {}", p.id, path, line, snippet);
-                println!("    -> {}", p.message);
-                hits += 1;
+                if gcc {
+                    if violation {
+                        println!("{path}:{line}:1: warning: {} ({})", p.message, p.id);
+                    }
+                } else if matches!(&mode, Mode::Audit(_)) {
+                    let status = if violation { "VIOLATION" } else { "ok" };
+                    println!("{status} [{}] {}:{}: {}", p.id, path, line, snippet);
+                } else if violation {
+                    println!("warning[{}] {}:{}: {}", p.id, path, line, snippet);
+                    println!("    -> {}", p.message);
+                }
+                if violation {
+                    hits += 1;
+                }
             }
         }
     }
 
+    let scope_desc = match &mode {
+        Mode::Diff => format!("lignes ajoutées du diff {base}...{refr}"),
+        Mode::All => "TOUS les fichiers (audit complet)".to_string(),
+        Mode::Audit(id) => format!("périmètre complet de la règle {id}"),
+    };
     println!(
-        "\n{hits} known-pattern(s) en warning sur les items ajoutés du diff {base}...{refr} \
-         ({} fichiers .rs modifiés) — exit 0 (warning only, ADR 0001)",
+        "\n{hits} violation(s) — {scope_desc} ({} fichiers .rs) — exit 0 (warning only, ADR 0001)",
         files.len()
     );
 }
