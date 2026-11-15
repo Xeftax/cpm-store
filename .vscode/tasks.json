@@ -2,7 +2,33 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "review-check (diff branche courante vs main)",
+      "label": "review-check (watch — auto à l'open, re-lint on save)",
+      "type": "shell",
+      "command": "cd tools/review-check && cargo build --release -q && cd ../.. && ./tools/review-check/target/release/review-check --format=gcc --watch",
+      "isBackground": true,
+      "runOptions": { "runOn": "folderOpen" },
+      "problemMatcher": {
+        "owner": "review-check",
+        "fileLocation": ["relative", "${workspaceFolder}"],
+        "pattern": {
+          "regexp": "^(.+\\.rs):(\\d+):1: (warning|error): (.+) \\((.+)\\)$",
+          "file": 1,
+          "line": 2,
+          "severity": 3,
+          "message": 4,
+          "code": 5
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^\\[review-check\\] run",
+          "endsPattern": "violation\\(s\\)"
+        },
+        "severity": "warning"
+      },
+      "presentation": { "reveal": "silent", "panel": "dedicated", "clear": false }
+    },
+    {
+      "label": "review-check (diff branche courante vs main, manuel)",
       "type": "shell",
       "command": "cd tools/review-check && cargo build --release -q && cd ../.. && ./tools/review-check/target/release/review-check --format=gcc main HEAD",
       "problemMatcher": {
@@ -21,7 +47,7 @@
       "presentation": { "reveal": "always", "panel": "shared", "clear": true }
     },
     {
-      "label": "review-check --all (audit complet du repo)",
+      "label": "review-check --all (audit complet, manuel)",
       "type": "shell",
       "command": "cd tools/review-check && cargo build --release -q && cd ../.. && ./tools/review-check/target/release/review-check --format=gcc --all",
       "problemMatcher": {

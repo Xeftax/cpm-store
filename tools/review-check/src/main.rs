@@ -26,6 +26,8 @@ fn main() {
             mode = Mode::All;
         } else if let Some(id) = a.strip_prefix("--audit=") {
             mode = Mode::Audit(id.to_string());
+        } else if a == "--watch" {
+            mode = Mode::Watch;
         } else {
             positional.push(a);
         }
@@ -35,12 +37,55 @@ fn main() {
 
     let root = checker::git_root();
     let cfg = checker::load_config(&root);
-    let (findings, n_files) = checker::run(&root, &cfg, base, refr, &mode);
 
+    if mode == Mode::Watch {
+        watch(&root, &cfg, gcc);
+        return;
+    }
+
+    let (findings, n_files) = checker::run(&root, &cfg, base, refr, &mode);
     let scope_desc = match &mode {
         Mode::Diff => format!("lignes ajoutées du diff {base}...{refr}"),
         Mode::All => "TOUS les fichiers (audit complet)".to_string(),
         Mode::Audit(id) => format!("périmètre complet de la règle {id}"),
+        Mode::Watch => unreachable!(),
     };
     report::print(&findings, n_files, &mode, gcc, &scope_desc);
+}
+
+/// Boucle watch : toutes les 500ms, re-lint (mode All) si un fichier .rs a changé
+/// (poll des mtimes, portable). Chaque run est loggé avec un timestamp pour le
+/// problemMatcher background de VS Code (beginsPattern "[review-check] run").
+fn watch(root: &str, cfg: &checker::Config, gcc: bool) {
+    use std::collections::HashMap;
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+    let mut last_mtime: HashMap<String, SystemTime> = HashMap::new();
+    let mut first = true;
+    loop {
+        let files: Vec<String> = checker::git(root, &["ls-files", "*.rs"])
+            .lines()
+            .map(String::from)
+            .collect();
+        let mut changed = first;
+        for f in &files {
+            if let Ok(mt) = std::fs::metadata(std::path::Path::new(root).join(f)).and_then(|m| m.modified()) {
+                if last_mtime.get(f).map(|&p| mt > p).unwrap_or(true) {
+                    changed = true;
+                }
+                last_mtime.insert(f.clone(), mt);
+            }
+        }
+        if changed {
+            let secs = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            println!("[review-check] run unix={secs}");
+            let (findings, n_files) = checker::run(root, cfg, "HEAD", "HEAD", &Mode::All);
+            report::print(&findings, n_files, &Mode::All, gcc, "watch — tous les fichiers");
+        }
+        first = false;
+        std::thread::sleep(Duration::from_millis(500));
+    }
 }

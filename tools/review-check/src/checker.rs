@@ -31,6 +31,7 @@ pub enum Mode {
     Diff,
     All,
     Audit(String),
+    Watch, // boucle infinie : re-lint quand un .rs change (poll mtime)
 }
 
 pub struct Finding {
@@ -143,14 +144,13 @@ pub fn run(root: &str, cfg: &Config, base: &str, refr: &str, mode: &Mode) -> (Ve
             let Some(rule) = rule else { continue };
             for Candidate { line, violation } in rule.candidates(&ast) {
                 let in_diff = match mode {
-                    Mode::All => true,
-                    Mode::Audit(_) => true,
+                    Mode::All | Mode::Audit(_) | Mode::Watch => true,
                     Mode::Diff => added.get(path).map(|s| s.contains(&line)).unwrap_or(false),
                 };
                 let emit_violation = violation && in_diff;
                 let emit = match mode {
                     Mode::Diff => emit_violation,
-                    Mode::All => violation,
+                    Mode::All | Mode::Watch => violation,
                     Mode::Audit(_) => true,
                 };
                 if emit {
