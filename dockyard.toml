@@ -12,6 +12,7 @@ harnesses = ["vibe"]
 # appelle directement scripts/ci/*.sh). On decline les workflows dockyard pour que
 # `dockyard sync` ne les réintroduise pas.
 decline = [
+  "deny.toml",
   ".github/workflows/board.yml",
   ".github/workflows/brand-lint.yml",
   ".github/workflows/ci.yml",

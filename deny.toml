@@ -1,18 +1,19 @@
 # cargo-deny — licences, advisories (RUSTSEC), doublons de versions.
-# Ajouté suite au LLM council du 2026-11-08 (recommandation Outsider/Contrarian) :
-# garantir que l'arbre de dépendances RESTE compatible avec le host
-# (linphone-sdk, GPLv3/AGPL) et sans vulnérabilité connue.
-# Config compatible cargo-deny 0.20 (allow-osi-fsf-free/unlicensed supprimés, PR #611).
+# Objectif (LLM council 2026-11-08) : l'arbre de dépendances RESTE compatible avec
+# le host (linphone-sdk, GPLv3/AGPL) et sans vulnérabilité connue.
+#
+# Migré pour cargo-deny >= 0.16 : la clé [licenses] deny a été supprimée (PR #611),
+# toute licence non listée dans `allow` est refusée par défaut.
+# Ce fichier est en `decline` dans dockyard.toml (généré par dockyard sinon).
 
 [licenses]
-# deny-list : on bloque le copyleft et les licences à problème ; tout licence
-# permissive (MIT, Apache-2.0, ISC, BSD, Zlib, Unicode-3.0, Unlicense, BSL-1.0,
-# CDLA-Permissive-2.0, ...) est autorisée sans avoir à l'énumérer.
-deny = [
-  "AGPL-3.0", "GPL-2.0", "GPL-3.0",
-  "LGPL-2.0", "LGPL-2.1", "LGPL-3.0",
-  "SSPL-1.0", "BUSL-1.1", "Elastic-2.0", "MS-RL",
-  "CC-BY-3.0", "CC-BY-4.0", "CC-BY-SA-3.0", "CC-BY-SA-4.0", "CC-BY-ND-4.0",
+# allow-list : seules ces licences permissives passent ; le copyleft (GPL/AGPL/LGPL),
+# SSPL, BUSL, Elastic-2.0, MS-RL, CC-BY*, etc. sont refusés par défaut.
+allow = [
+  "MIT", "MIT-0", "Apache-2.0", "ISC",
+  "BSD-2-Clause", "BSD-3-Clause", "0BSD",
+  "Zlib", "Unicode-3.0", "Unlicense", "CC0-1.0",
+  "BSL-1.0", "CDLA-Permissive-2.0",
 ]
 confidence-threshold = 0.8
 
