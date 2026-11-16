@@ -67,8 +67,7 @@ PR #3, `crates/cpm-core/src/model/attribute.rs` (`Attribute`, `AttributeList`).
   nommée : `X::from(vec![...])` ou `vec![...].into()` (prouvé, ex16).
 - **Deref est tout-ou-rien** : `type Target` est un type concret, la deref coercion expose TOUTES
   ses méthodes publiques — impossible de passer une liste de noms. Pour un sous-ensemble
-  explicite : méthodes à la main si peu nombreuses, sinon macro `delegate! { len -> usize,
-  is_empty -> bool }` (liste explicite + génération, prouvé ex17 — `push` reste indisponible,
+  explicite : méthodes à la main si peu nombreuses, sinon macro `delegate! { len -> usize, is_empty -> bool }` (liste explicite + génération, prouvé ex17 — `push` reste indisponible,
   E0599), ou crate `ambassador` (`#[derive(Delegate)]` sur un trait) pour du déclaratif lourd.
 
 ### règle d'organisation : un fichier de type = sections thématiques
@@ -86,8 +85,8 @@ PR #3, `crates/cpm-core/src/model/attribute.rs` (`Attribute`, `AttributeList`).
 - La macro vit dans le fichier du type (un seul point d'entrée) ; on ne la monte dans `mod.rs`
   que si elle est réutilisée par un autre module.
 - Alternative si 10+ cas : un trait `SpecAttribute { const NAME: &'static str; fn parse(&str) -> Self; }`
-  + `fn typed<V: SpecAttribute>(&self) -> Option<V>`. Pour 2-3 cas, la macro gagne (méthodes
-  nommées, discoverables, doc comments) — ne pas over-engineer.
+  - `fn typed<V: SpecAttribute>(&self) -> Option<V>`. Pour 2-3 cas, la macro gagne (méthodes
+    nommées, discoverables, doc comments) — ne pas over-engineer.
 
 ## Rapport
 
