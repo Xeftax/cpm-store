@@ -69,7 +69,9 @@ fn watch(root: &str, cfg: &checker::Config, gcc: bool) {
             .collect();
         let mut changed = first;
         for f in &files {
-            if let Ok(mt) = std::fs::metadata(std::path::Path::new(root).join(f)).and_then(|m| m.modified()) {
+            if let Ok(mt) =
+                std::fs::metadata(std::path::Path::new(root).join(f)).and_then(|m| m.modified())
+            {
                 if last_mtime.get(f).map(|&p| mt > p).unwrap_or(true) {
                     changed = true;
                 }
@@ -83,7 +85,13 @@ fn watch(root: &str, cfg: &checker::Config, gcc: bool) {
                 .unwrap_or(0);
             println!("[review-check] run unix={secs}");
             let (findings, n_files) = checker::run(root, cfg, "HEAD", "HEAD", &Mode::All);
-            report::print(&findings, n_files, &Mode::All, gcc, "watch — tous les fichiers");
+            report::print(
+                &findings,
+                n_files,
+                &Mode::All,
+                gcc,
+                "watch — tous les fichiers",
+            );
         }
         first = false;
         std::thread::sleep(Duration::from_millis(500));

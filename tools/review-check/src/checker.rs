@@ -54,7 +54,9 @@ pub fn git(root: &str, args: &[&str]) -> String {
 }
 
 pub fn git_root() -> String {
-    git(".", &["rev-parse", "--show-toplevel"]).trim().to_string()
+    git(".", &["rev-parse", "--show-toplevel"])
+        .trim()
+        .to_string()
 }
 
 /// Lignes ajoutées du diff base...ref, par fichier .rs : {path: {numéros de ligne}}.
@@ -140,7 +142,9 @@ pub fn run(root: &str, cfg: &Config, base: &str, refr: &str, mode: &Mode) -> (Ve
                 }
             }
             let src = match mode {
-                Mode::All => std::fs::read_to_string(Path::new(root).join(path)).unwrap_or_default(),
+                Mode::All => {
+                    std::fs::read_to_string(Path::new(root).join(path)).unwrap_or_default()
+                }
                 _ => git(root, &["show", &format!("{refr}:{path}")]),
             };
             let ast = match syn::parse_file(&src) {
@@ -174,6 +178,5 @@ pub fn run(root: &str, cfg: &Config, base: &str, refr: &str, mode: &Mode) -> (Ve
             }
         }
     }
-    let violations = findings.iter().filter(|f| f.violation).count();
     (findings, files.len())
 }

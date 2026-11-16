@@ -19,11 +19,7 @@ impl Rule for MainRsThin {
                 line: line_of(item),
                 violation: matches!(
                     item,
-                    Item::Struct(_)
-                        | Item::Enum(_)
-                        | Item::Trait(_)
-                        | Item::Impl(_)
-                        | Item::Mod(_) // mod inline avec body (les `mod x;` sont des Item::Mod sans content)
+                    Item::Struct(_) | Item::Enum(_) | Item::Trait(_) | Item::Impl(_) | Item::Mod(_) // mod inline avec body (les `mod x;` sont des Item::Mod sans content)
                 ) && !matches!(item, Item::Mod(m) if m.content.is_none()),
             })
             .collect()
