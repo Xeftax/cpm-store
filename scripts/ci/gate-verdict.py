@@ -74,7 +74,8 @@ def effective_mode(modes: dict[str, str], check: str, event: str, schedule: str,
     if event == "schedule":
         return modes.get("cron", "off") if modes.get("schedule") == schedule else "off"
     if event == "workflow_dispatch":
-        return modes.get("cron", "off") if check == dispatched else "off"
+        # `workflow_dispatch` is rendered only when the check sets it; a manual run falls back to `cron`.
+        return (modes.get("workflow_dispatch") or modes.get("cron", "off")) if check == dispatched else "off"
     return "off"
 
 

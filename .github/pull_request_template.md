@@ -12,6 +12,5 @@ Closes #
 
 ## Test plan
 
-- [ ] `uv run pytest -v`
-- [ ] `uv run ruff check .`
-- [ ] `uv run mypy . --config-file mypy.toml`
+<!-- What you ran or checked by hand, beyond the checks `CI Gate` already runs:
+     one `- [ ]` line each. -->

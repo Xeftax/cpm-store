@@ -28,7 +28,15 @@
 #
 # `uvx` rather than `uv run`, inherited from the hook this replaces and still right: a
 # repo with no Python environment at all still has a README to format.
+#
+# `--python 3.13` on every invocation: the shared `.mdformat.toml` carries an `exclude` list,
+# which mdformat refuses below Python 3.13 ("'exclude' patterns are only available on Python
+# 3.13+"). `uvx` takes the interpreter from `UV_PYTHON` or the machine's default, so a repo with
+# no Python of its own, or a developer on an older default, failed here until it exported
+# `UV_PYTHON=3.13`. The flag outranks that variable, so the script no longer depends on it.
 set -euo pipefail
+
+PYTHON_VERSION="3.13"
 
 MDFORMAT_VERSION="0.7.22"
 MDFORMAT_GFM_VERSION="1.0.0"
@@ -42,6 +50,7 @@ if [[ "${1:-}" == "--hook" ]]; then
   [[ "$file" == *.md && -f "$file" ]] || exit 0
   status=0
   uvx \
+    --python "${PYTHON_VERSION}" \
     --with "mdformat-gfm==${MDFORMAT_GFM_VERSION}" \
     --with "mdformat-tables==${MDFORMAT_TABLES_VERSION}" \
     --with "mdformat-frontmatter==${MDFORMAT_FRONTMATTER_VERSION}" \
@@ -50,6 +59,7 @@ if [[ "${1:-}" == "--hook" ]]; then
 fi
 
 exec uvx \
+  --python "${PYTHON_VERSION}" \
   --with "mdformat-gfm==${MDFORMAT_GFM_VERSION}" \
   --with "mdformat-tables==${MDFORMAT_TABLES_VERSION}" \
   --with "mdformat-frontmatter==${MDFORMAT_FRONTMATTER_VERSION}" \

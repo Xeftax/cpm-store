@@ -1,15 +1,15 @@
-// Managed by dockyard — generated whole by `dockyard sync` from this repo's
-// `[dockyard] languages`. One recommendation set per declared language; a region in this
-// file is refused. Decline the file in `dockyard.toml` to own your editor setup.
+// Managed by dockyard, rendered from `[dockyard] languages`: a block per declared language,
+// around the settings every repo shares. JSONC: VS Code accepts comments in .vscode/*.json.
 {
   "recommendations": [
-    "tamasfe.even-better-toml",
-    "redhat.vscode-yaml",
-    "rust-lang.rust-analyzer",
     "ms-python.python",
     "ms-python.vscode-python-envs",
     "ms-python.mypy-type-checker",
     "charliermarsh.ruff",
-    "nwgh.bandit"
+    "nwgh.bandit",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "tamasfe.even-better-toml",
+    "redhat.vscode-yaml"
   ]
 }

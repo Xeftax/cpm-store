@@ -43,10 +43,16 @@
 **/htmlcov/
 **/conftest.py
 
-# build-outputs
-**/dist/
-**/build/
-**/target/
+# node-modules
+**/node_modules/
+
+# typescript-extras
+**/.eslintcache
+**/.next/
+**/.turbo/
+**/*.tsbuildinfo
+**/coverage/
+**/.vite/
 
 # version-control
 **/.git/
@@ -68,7 +74,6 @@
 
 # agent-config-in-build-context
 **/.claude/
-**/.vibe/
 
 # editor-os
 **/.DS_Store
@@ -78,3 +83,7 @@
 # build-recipe
 **/Dockerfile
 **/docker-compose*.yml
+
+# check-workspace
+**/_source/
+**/trivy-reports/

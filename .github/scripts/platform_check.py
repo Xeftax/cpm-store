@@ -38,7 +38,13 @@ Exit 2 is deliberately not success. A check that cannot run is not a check that 
 and the scheduled caller tracks it exactly as it would drift — the missing permission IS
 the finding.
 
-Env: GH_TOKEN with `administration:read` on the repo. The default GITHUB_TOKEN does NOT
+GitHub Environments are compared too, for every environment the repo deploys to (each
+`[[deploy.target]]` of its own `dockyard.toml`). An Environment can express reviewers, a
+wait timer and a deployment branch policy, and nothing else: it cannot require a status
+check, so what it is compared on is exactly that. A repo with no deploy target has none to
+hold to a standard, and the environments call is not made.
+
+Env: GH_TOKEN with `administration:read` and `actions:read` on the repo. The default GITHUB_TOKEN does NOT
 carry it, which is the chicken-and-egg architecture.md §9 names: the App that makes
 verifying the declaration possible is itself the declaration's first entry.
 
@@ -105,6 +111,29 @@ _DEFAULTS: dict[str, object] = {
     "allowed-push-teams": [],
     "allowed-push-apps": [],
 }
+
+
+# The estate's standard for a GitHub Environment, by class, read back from `GET
+# /repos/{repo}/environments`. Measured 2026-10-28 on the repos that deploy through dockyard
+# targets, doc-station and agent-forge: their 10 environments carry no protection rule at all
+# (no reviewer, no wait timer) and no deployment branch policy, so any branch's workflow run
+# can use an environment's secrets. Other repos were not the measure, and one outside
+# dockyard does protect an environment. What the standard asks for beyond that is one thing, for the environments that
+# are a client's own (`<client>-<stage>`): a deployment branch policy of "protected", so a
+# feature branch cannot deploy to a client. The shared `dev` and `demo` stay open to any
+# branch, which is how they are used. Required reviewers and a wait timer default to none
+# everywhere: a human approval on top of a manual dispatch is a decision a repo makes, by
+# declaring it, rather than one the estate imposes.
+#
+# A repo's `[platform.environments.<id>]` overrides one key of one environment.
+_SHARED_ENVIRONMENT: dict[str, object] = {
+    "required-reviewers": 0,
+    "prevent-self-review": False,
+    "wait-timer": 0,
+    "deployment-branch-policy": "any",
+}
+_CLIENT_ENVIRONMENT: dict[str, object] = _SHARED_ENVIRONMENT | {"deployment-branch-policy": "protected"}
+_SHARED_ENVIRONMENT_IDS = frozenset({"dev", "demo"})
 
 
 class Finish(Exception):  # noqa: N818 -- control flow carrying an exit status, not an error
@@ -530,6 +559,133 @@ def check_dependabot(decl: Json, root: Path, repo: str, report: Report) -> None:
             report.drift(f"security updates paused: declared {want_paused}, actual {have_paused}")
 
 
+def read_target_ids(decl: Path) -> list[str]:
+    """Return the environment id of every `[[deploy.target]]` in the repo's declaration, sorted and distinct.
+
+    The anchor of the environment comparison: the environments a repo is held to are the
+    ones its own targets deploy to, so a repo that deploys nothing is asked about none, and
+    nothing here needs the base. A target that does not name its environment as text cannot
+    be anchored, and that is a declaration that was not read, not an empty one: it stops
+    the run with 2 like any other unreadable declaration.
+    """
+    if not decl.is_file():
+        return []
+    try:
+        with decl.open("rb") as fh:
+            targets = tomllib.load(fh).get("deploy", {}).get("target", [])
+        ids = {
+            f"{target['client']}-{target['environment']}" if target.get("client") else target["environment"]
+            for target in targets
+        }
+        if not all(isinstance(identifier, str) and identifier for identifier in ids):
+            raise TypeError(ids)
+    except (OSError, ValueError, TypeError, KeyError, AttributeError):
+        print(f"platform-check: cannot read the [[deploy.target]] tables of {DECL}.", file=sys.stderr)
+        raise Finish(2) from None
+    return sorted(ids)
+
+
+def environment_standard(identifier: str, decl: Json) -> Json:
+    """Return one environment's declaration: its class's standard, overlaid by the repo's own entry."""
+    standard = _SHARED_ENVIRONMENT if identifier in _SHARED_ENVIRONMENT_IDS else _CLIENT_ENVIRONMENT
+    override = decl.at("environments", identifier)
+    return Json(standard).merged(override) if isinstance(override.value, dict) else Json(standard)
+
+
+def branch_policy(environment: Json) -> str | None:
+    """Name an environment's deployment branch policy, or None when it cannot be read.
+
+    GitHub always sends the key, null for "any branch". An absent key is a payload that
+    lacks the field, which says nothing about the policy rather than that there is none.
+    """
+    if not environment.has("deployment_branch_policy"):
+        return None
+    policy = environment.at("deployment_branch_policy")
+    if policy.value is None:
+        return "any"
+    if policy.at("protected_branches").value is True:
+        return "protected"
+    if policy.at("custom_branch_policies").value is True:
+        return "custom"
+    return None
+
+
+def environment_actual(environment: Json) -> dict[str, str | None]:
+    """Read back, as text, each property an Environment can express; None for one the payload does not carry.
+
+    A missing or non-list `protection_rules` is not an environment with no rule: reading it
+    that way would pass an environment whose reviewers this run could not see.
+    """
+    listing = environment.at("protection_rules")
+    policy = branch_policy(environment)
+    if not isinstance(listing.value, list):
+        return dict.fromkeys(("required-reviewers", "prevent-self-review", "wait-timer")) | {
+            "deployment-branch-policy": policy
+        }
+    rules = listing.items()
+    reviewer_rules = [rule for rule in rules if rule.at("type").value == "required_reviewers"]
+    timers = [rule.at("wait_timer").value for rule in rules if rule.at("type").value == "wait_timer"]
+    return {
+        "required-reviewers": str(sum(len(rule.at("reviewers").items()) for rule in reviewer_rules)),
+        "prevent-self-review": "true"
+        if any(rule.at("prevent_self_review").value is True for rule in reviewer_rules)
+        else "false",
+        "wait-timer": str(timers[0]) if timers else "0",
+        "deployment-branch-policy": policy,
+    }
+
+
+def read_environments(root: Path, repo: str, report: Report) -> dict[str, Json] | None:
+    """Return the repo's environments by name, or None after reporting that they could not be read.
+
+    A failed call, a body that is not JSON and a page shorter than the total are each an
+    unreadable axis: a token the endpoint tells nothing to answers 403 or 404, which looks
+    exactly like "no environments", and reading it that way would report every declared
+    environment as missing, or, worse, none of them as drifted.
+    """
+    result = gh(root, "api", f"repos/{repo}/environments?per_page=100")
+    payload = Json.parse(result.stdout) if result.returncode == 0 else None
+    listing = payload.at("environments") if payload is not None else None
+    if payload is None or listing is None or not isinstance(listing.value, list):
+        report.cannot_read(f"environments: cannot read ({result.stderr or 'no usable answer'})")
+        return None
+    environments = listing.items()
+    if payload.at("total_count").value != len(environments):
+        report.cannot_read("environments: the answer is a partial page, so none is compared")
+        return None
+    return {environment.at("name").text(): environment for environment in environments}
+
+
+def check_environments(decl: Json, root: Path, repo: str, targets: list[str], report: Report) -> None:
+    """Compare every environment the repo deploys to, or declares an entry for, with its standard.
+
+    An entry in `[platform.environments]` that matches no target is compared too: the
+    environment it names must exist, so a misspelt id is a finding instead of a
+    declaration nothing reads.
+    """
+    overrides = decl.at("environments").value
+    identifiers = sorted({*targets, *(overrides if isinstance(overrides, dict) else {})})
+    if not identifiers:
+        print("platform-check: no deploy target, so no environment is compared.")
+        return
+    environments = read_environments(root, repo, report)
+    if environments is None:
+        return
+    for identifier in identifiers:
+        environment = environments.get(identifier)
+        if environment is None:
+            report.drift(f"environment {identifier}: the repository has no such environment")
+            continue
+        want, have = environment_standard(identifier, decl), environment_actual(environment)
+        for key, actual in have.items():
+            if actual is None:
+                report.cannot_read(f"environment {identifier}: {key} has a shape GitHub does not document")
+                continue
+            expected = want.declared(key)
+            if expected is not None and expected != actual:
+                report.drift(f"environment {identifier}: {key}: declared {expected}, actual {actual}")
+
+
 # Every comparison above asks "is what we declared actually set". This asks the opposite,
 # and it is the half that was missing: what is set that nobody declared? An EXEMPTION does
 # not flip any boolean — `required-reviews` stays 1, `enforce-admins` stays true — it just
@@ -571,6 +727,7 @@ def run(root: Path) -> int:
         print(f"platform-check: cannot enter {root}: not a directory", file=sys.stderr)
         return 1
     decl = effective_declaration(read_platform(root / DECL))
+    targets = read_target_ids(root / DECL)
     repo = repository(root)
     branch = decl.declared("branch") or ""
     print(f"platform-check: {repo}, branch {branch}")
@@ -582,6 +739,7 @@ def run(root: Path) -> int:
     check_queue_settings(decl, root, repo, branch, report)
     check_merge_commit_button(decl, root, repo, report)
     check_dependabot(decl, root, repo, report)
+    check_environments(decl, root, repo, targets, report)
     # Proven by this run rather than listed. Reading branch protection needs the App's
     # token (GITHUB_TOKEN would have exited 2 above), and that token can only have been
     # minted with both the variable and the secret — so reaching this line is the whole

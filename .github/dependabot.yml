@@ -39,7 +39,7 @@ updates:
   # `action.yml` is only read from a directory named here. Measured when the first grouped
   # PR bumped every workflow to `actions/checkout@v7` and left `.github/actions/setup` on
   # v4. The two globs cover `.github/actions/<name>/` and `.github/actions/<group>/<name>/`
-  # (`deploy/`, `expensive-suite/`); a glob matching nothing in a repo is simply empty.
+  # (`deploy/`, `fleet/`); a glob matching nothing in a repo is simply empty.
   - package-ecosystem: 'github-actions'
     directories:
       - '/'
