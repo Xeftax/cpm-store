@@ -26,6 +26,9 @@ pub enum CpmError {
     /// An object does not conform to the CPM/NMS model.
     #[error("invalid CPM object: {0}")]
     InvalidObject(String),
+    /// A referenced resource (object, folder, subscription) does not exist.
+    #[error("not found: {0}")]
+    NotFound(String),
 }
 
 #[cfg(test)]
