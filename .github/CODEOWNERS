@@ -1,9 +1,4 @@
-# managed by dockyard — generated whole by `dockyard sync` from dockyard.toml's
-# `[[codeowner]]`, never edited by hand. A route of this repo's own is a `[[codeowner]]`
-# entry; a `dockyard:keep` region in this file is refused rather than kept.
-#
-# See https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
-#
-# Rules are last-match-wins: the catch-all is the default, and more specific paths after
-# it narrow review to whoever actually works that part of the tree (read off the history,
-# not guessed).
+# Code owners — repo perso de Xeftax : tout le dépôt lui appartient.
+# En solo, require_code_owner_reviews reste a false (GitHub interdit l'auto-approve) ;
+# ce fichier documente l'ownership et prendra effet si un contributeur externe arrive.
+* @Xeftax
