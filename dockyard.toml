@@ -49,4 +49,6 @@ required-checks = [
 ]
 required-reviews = 0
 code-owner-reviews = false
+# Inutile avec required-reviews = 0 (GitHub remet le switch a false de toute facon).
+last-push-approval = false
 merge-queue = false
