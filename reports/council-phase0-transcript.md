@@ -14,7 +14,7 @@ conversations dans Linphone. Contexte lu : AGENTS.md, README.md, docs/architectu
 docs/specs.md + docs/specs/README.md, docs/roadmap.md, docs/monitoring.md.
 
 Décisions évaluées : D1 binding REST d'abord (IMAP plus tard) · D2 licence Apache-2.0 ·
-D3 lib stateless (traits de stockage exposés) · D4 workspace crates/* MSRV 1.85 édition 2024 ·
+D3 lib stateless (traits de stockage exposés) · D4 workspace crates/\* MSRV 1.85 édition 2024 ·
 D5 FFI C via cbindgen · D6 JSON only. Stack : reqwest 0.12, tokio 1, serde, thiserror 2,
 mail-parser 0.11, wiremock 0.6, cbindgen 0.29. Phase 1 prévue : modèles cpm-core + golden
 tests annexes C–H des specs.
@@ -80,6 +80,7 @@ tests annexes C–H des specs.
 ## Verdict du chairman
 
 ### Where the Council Agrees
+
 - D2, D4, D6 tiennent (D4 avec condition : CI linphone-sdk NDK accepte Rust 1.85/édition 2024).
 - D5 tient mais le contrat FFI doit être écrit avant tout code : runtime tokio global possédé par
   cpm-ffi (OnceLock), vtable C explicite, catch_unwind à la frontière, threading figé.
@@ -91,6 +92,7 @@ tests annexes C–H des specs.
 - Aucun dérivé OMA publié publiquement avant vérification des droits de redistribution.
 
 ### Where the Council Clashes
+
 - D1 (REST d'abord) : B la juge à risque fatal (inverser si spec+QA+interop pas embarquées avant
   phase 2) ; D/C/E valident sous condition ; A valide mais se contredit (binding-agnostic vs wedge).
 - Surface de publication : A veut crates.io + fixtures publiques ; B/C/D bloquent tant que les droits
@@ -98,6 +100,7 @@ tests annexes C–H des specs.
 - D3 : propriétaire exact de l'état de synchro (mémoire cpm-client vs blob hôte vs traits) à trancher.
 
 ### Blind Spots the Council Caught
+
 - Juridique : D2 jamais analysée face au host GPLv3/AGPL (compat Apache-2.0/AGPLv3 au linkage
   statique, combined work, clause brevet, §13 AGPL, versioning ABI C) — 3 peer reviews, 0 conseiller.
 - Chiffrement du backup (E2E, garde des clés, effacement/GDPR serveur) — aucun conseiller.
@@ -106,6 +109,7 @@ tests annexes C–H des specs.
 - Risque produit : qui pilote l'intégration Linphone / serveur NMS déployé ?
 
 ### The Recommendation
+
 Valider D2, D4, D6 telles quelles. D5 à condition d'écrire le contrat FFI avant la phase 6.
 Re-scopper D3 : traits = messages + SyncState sérialisable stocké par l'hôte, mapping
 objectId↔message dans cpm-core dès la phase 1. **D1 validée sous condition suspensive** : REST
@@ -115,6 +119,7 @@ fixtures, dérivés OMA) jusqu'à (a) droits de redistribution OMA vérifiés et
 Apache-2.0/AGPLv3 au linkage. Golden tests des annexes C–H exclusivement depuis le PDF.
 
 ### The One Thing to Do First
+
 Embarquer REST_NetAPI_NMS dans le dépôt avec le même pipeline QA que les autres specs — 4/5
 conseillers convergent là-dessus ; ça débloque le verdict définitif sur D1, le critère d'interop,
 et la base normative des golden tests.

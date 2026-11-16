@@ -7,12 +7,12 @@ pièges vérifiés le 2026-11-08.
 
 ## Outils
 
-| commande | sortie | usage |
-|---|---|---|
-| `python3 tools/dashboard.py --project cpm` | terminal | snapshot : sessions actives (parallèles), durées, modèles, contexte courant/max vs seuil, tokens, coût estimé |
-| `python3 tools/dashboard.py --project cpm --watch 5` | terminal | temps réel, rafraîchi toutes les 5 s (Ctrl-C pour quitter) |
-| `python3 tools/dashboard.py --project cpm --html reports/dashboard.html --json reports/dashboard.json` | fichiers | dashboard HTML auto-refresh (meta refresh 5 s, ouvrable dans un navigateur) + snapshot JSON |
-| `python3 tools/usage_report.py --out-dir reports --project cpm` | `reports/usage.{json,md}` | rapport agrégé : totaux, par modèle, par session, rétention |
+| commande                                                                                               | sortie                    | usage                                                                                                         |
+| ------------------------------------------------------------------------------------------------------ | ------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `python3 tools/dashboard.py --project cpm`                                                             | terminal                  | snapshot : sessions actives (parallèles), durées, modèles, contexte courant/max vs seuil, tokens, coût estimé |
+| `python3 tools/dashboard.py --project cpm --watch 5`                                                   | terminal                  | temps réel, rafraîchi toutes les 5 s (Ctrl-C pour quitter)                                                    |
+| `python3 tools/dashboard.py --project cpm --html reports/dashboard.html --json reports/dashboard.json` | fichiers                  | dashboard HTML auto-refresh (meta refresh 5 s, ouvrable dans un navigateur) + snapshot JSON                   |
+| `python3 tools/usage_report.py --out-dir reports --project cpm`                                        | `reports/usage.{json,md}` | rapport agrégé : totaux, par modèle, par session, rétention                                                   |
 
 `reports/` est versionné : snapshot durable des agrégats.
 
@@ -40,8 +40,7 @@ pièges vérifiés le 2026-11-08.
 
 ## Calcul du coût estimé
 
-Par appel, depuis le journal : `(input - cached) × input_price + cached ×
-cached_input_price + (output + reasoning) × output_price`, le tout /1M
+Par appel, depuis le journal : `(input - cached) × input_price + cached × cached_input_price + (output + reasoning) × output_price`, le tout /1M
 (prix en $/M tokens). Si le modèle résolu n'a pas de prix local → coût `n/a`
 (c'est le cas de l'alias orphelin `mistral-large-4-0-3` ; le coût fiable arrive
 avec `stats.session_cost` à la clôture de session).
@@ -63,8 +62,7 @@ avec `stats.session_cost` à la clôture de session).
   `mistral-large-4-0-3` (juste `thinking="high"`, pas de name/prix/seuil →
   hérite du global 200000, et le nom envoyé à l'API est l'alias lui-même).
 - Défaut serveur (A/B test `ml408-rollout-default-cli-ab-test`) :
-  `mistral-large-4-0-3` → name `mistral-large-4-0`, `auto_compact_threshold:
-  800000`.
+  `mistral-large-4-0-3` → name `mistral-large-4-0`, `auto_compact_threshold: 800000`.
 - Conséquence : une session lancée avec l'alias `mistral-large-4-0-3` tombe sur
   l'entrée locale orpheline et compacte à **200k**, pas 800k. Le dashboard
   affiche le seuil effectif par session pour le repérer. Pour viser 800k :
