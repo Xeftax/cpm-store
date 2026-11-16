@@ -51,7 +51,7 @@ pub struct Attribute {
 severity = "warning"
 exclude_files = []
 occurrences = [
-  { file = "crates/cpm-core/src/model/attribute.rs", lines = "26-37 et 115-121", since = "PR #3" },
+  { file = "crates/cpm-core/src/model/attribute.rs", lines = "26-37 et 115-121 (Helper dans méthode d'impl — détecté depuis l'ajustement du périmètre helper_in_fn)", since = "PR #3; fixed in PR #12 (review/attribute-list-crate)" },
 ]
 
 [[pattern]]
@@ -75,7 +75,7 @@ pub struct Foo {
 severity = "warning"
 exclude_files = []
 occurrences = [
-  { file = "crates/cpm-core/src/model/attribute.rs", lines = "23, 103, 112", since = "PR #3" },
+  { file = "crates/cpm-core/src/model/attribute.rs", lines = "23, 103, 112", since = "PR #3; fixed in PR #12 (review/attribute-list-crate)" },
 ]
 
 [[pattern]]
@@ -92,12 +92,13 @@ impl AttributeList { pub fn len(&self) -> usize { self.0.len() } }  // ET délé
 good_example = """
 pub struct AttributeList { attribute: Vec<Attribute> }   // champ privé, struct nommée
 impl Deref for AttributeList { type Target = Vec<Attribute>; fn deref(&self) -> &Self::Target { &self.attribute } }
+// PAS de DerefMut : ne pas exposer push/remove qui violent l'unicité des noms (REST-NMS §5.3.2.6)
 impl From<Vec<Attribute>> for AttributeList { /* ... */ }
 """
 severity = "warning"
 exclude_files = []
 occurrences = [
-  { file = "crates/cpm-core/src/model/attribute.rs", lines = "53", since = "PR #3" },
+  { file = "crates/cpm-core/src/model/attribute.rs", lines = "53", since = "PR #3; fixed in PR #12 (review/attribute-list-crate)" },
 ]
 
 [[pattern]]
@@ -118,7 +119,7 @@ impl Deref for X { type Target = Vec<T>; fn deref(&self) -> &Self::Target { &sel
 severity = "warning"
 exclude_files = []
 occurrences = [
-  { file = "crates/cpm-core/src/model/attribute.rs", lines = "94, 98, 134-144 (avant refactor)", since = "PR #3" },
+  { file = "crates/cpm-core/src/model/attribute.rs", lines = "94, 98, 134-144 (avant refactor)", since = "PR #3; fixed in PR #12 (review/attribute-list-crate)" },
 ]
 
 [[pattern]]
@@ -144,31 +145,31 @@ message = "corps de fonction dupliqué (à un nom près) -> factoriser (macro/tr
 severity = "warning"
 exclude_files = []
 occurrences = [
-  { file = "crates/cpm-core/src/model/attribute.rs", lines = "122-132 (message_context/direction, avant refactor)", since = "PR #3" },
+  { file = "crates/cpm-core/src/model/attribute.rs", lines = "122-132 (message_context/direction, avant refactor)", since = "PR #3; fixed in PR #12 via macro typed_attribute!" },
 ]
 
 [[pattern]]
 id = "file-sections"
-rule = "Un fichier .rs de plus de 10 items sans aucune bannière de section (`// ==== Titre ====`) manque d'organisation thématique -> découper en sections (déclaration / constructeurs / lookup / accesseurs / serde / tests)."
+rule = "Un fichier .rs de plus de 10 items sans aucune bannière de section (`// ==== Titre ====` pour une section, `// ---- Titre ----` pour une sous-section) manque d'organisation thématique -> découper en sections (déclaration / constructeurs / lookup / accesseurs / serde / tests)."
 applies_to = "tout fichier .rs conséquent"
 when_not_applicable = "fichiers <= 10 items (trop petits pour mériter des sections) ; fichiers avec bannières existantes"
 scope = "**/*.rs"
-message = "fichier volumineux sans sections thématiques (// ==== ... ====) -> découper par thème."
+message = "fichier volumineux sans sections thématiques (// ==== ... ==== ou sous-section // ---- ... ----) -> découper par thème."
 severity = "warning"
 exclude_files = []
 occurrences = [
-  { file = "crates/cpm-core/src/model/attribute.rs", lines = "avant refactor (pas de bannières)", since = "PR #3, fixed in PR #5" },
+  { file = "crates/cpm-core/src/model/attribute.rs", lines = "avant refactor (pas de bannières)", since = "PR #3; fixed in PR #12 (review/attribute-list-crate)" },
 ]
 
 [[pattern]]
 id = "thematic-clusters"
-rule = "Le sémantique « qui va ensemble » = le graphe d'appels intra-fichier : une fonction qui appelle une autre fonction du même fichier crée une arête (union-find). Une composante connexe de >= 3 fonctions est un groupe thématique ; s'il n'a pas de bannière `// ====` au-dessus, le fichier manque de sections -> violation."
+rule = "Le sémantique « qui va ensemble » = le graphe d'appels intra-fichier : une fonction qui appelle une autre fonction du même fichier crée une arête (union-find). Une composante connexe de >= 3 fonctions est un groupe thématique ; s'il n'a pas de bannière (`// ====` section ou `// ----` sous-section) dans les 5 lignes au-dessus, le fichier manque de sections -> violation."
 applies_to = "tout fichier .rs avec plusieurs fonctions interconnectées"
 when_not_applicable = "clusters déjà sous une bannière de section ; fonctions orphelines isolées (taille < 3)"
 scope = "**/*.rs"
-message = "cluster de fonctions liées par appels (graphe intra-fichier) sans bannière // ==== au-dessus -> créer une section thématique. Ex: get->values->first_value->message_context (attribute.rs PR #3)."
+message = "cluster de fonctions liées par appels (graphe intra-fichier) sans bannière (// ==== ou // ----) au-dessus -> créer une section thématique. Ex: get->values->first_value->message_context (attribute.rs PR #3)."
 severity = "warning"
 exclude_files = []
 occurrences = [
-  { file = "crates/cpm-core/src/model/attribute.rs", lines = "60-132 (lookup + accesseurs typés, avant refactor)", since = "PR #3, fixed in PR #5" },
+  { file = "crates/cpm-core/src/model/attribute.rs", lines = "60-132 (lookup + accesseurs typés, avant refactor)", since = "PR #3; fixed in PR #12 (review/attribute-list-crate)" },
 ]

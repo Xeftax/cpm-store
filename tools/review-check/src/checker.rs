@@ -142,10 +142,11 @@ pub fn run(root: &str, cfg: &Config, base: &str, refr: &str, mode: &Mode) -> (Ve
                 }
             }
             let src = match mode {
-                Mode::All => {
+                // All/Audit lisent le working tree ; seul le mode Diff lit le ref git
+                Mode::All | Mode::Audit(_) | Mode::Watch => {
                     std::fs::read_to_string(Path::new(root).join(path)).unwrap_or_default()
                 }
-                _ => git(root, &["show", &format!("{refr}:{path}")]),
+                Mode::Diff => git(root, &["show", &format!("{refr}:{path}")]),
             };
             let ast = match syn::parse_file(&src) {
                 Ok(a) => a,
@@ -164,7 +165,17 @@ pub fn run(root: &str, cfg: &Config, base: &str, refr: &str, mode: &Mode) -> (Ve
                     Mode::All | Mode::Watch => violation,
                     Mode::Audit(_) => true,
                 };
-                if emit {
+                // soupape par ligne : `// review: ignore <rule-id>` sur la ligne du
+                // finding ou celle juste au-dessus (voir review-memory-owner)
+                let marker = format!("review: ignore {}", p.id);
+                let ignored = violation
+                    && (line.saturating_sub(2)..line).any(|idx| {
+                        src.lines()
+                            .nth(idx)
+                            .map(|l| l.contains(&marker))
+                            .unwrap_or(false)
+                    });
+                if emit && !ignored {
                     findings.push(Finding {
                         rule_id: p.id.clone(),
                         path: path.clone(),
