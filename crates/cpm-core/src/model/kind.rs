@@ -189,11 +189,11 @@ mod tests {
     use crate::model::attribute::Attribute;
 
     fn attrs(pairs: &[(&str, &str)]) -> AttributeList {
-        AttributeList(
+        AttributeList::from(
             pairs
                 .iter()
                 .map(|(n, v)| Attribute::new(*n, vec![(*v).to_owned()]))
-                .collect(),
+                .collect::<Vec<_>>(),
         )
     }
 
@@ -252,7 +252,7 @@ mod tests {
             CpmObjectKind::Message
         );
         assert_eq!(
-            cpm_kind(&AttributeList::new(), &empty),
+            cpm_kind(&AttributeList::default(), &empty),
             CpmObjectKind::Message
         );
     }
@@ -268,6 +268,9 @@ mod tests {
         );
         let mut vvm = FlagList::new();
         vvm.insert(MetadataFlag::parse("$CPM_VVM"));
-        assert_eq!(cpm_kind(&AttributeList::new(), &vvm), CpmObjectKind::NonCpm);
+        assert_eq!(
+            cpm_kind(&AttributeList::default(), &vvm),
+            CpmObjectKind::NonCpm
+        );
     }
 }
