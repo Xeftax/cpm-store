@@ -38,10 +38,13 @@ Owner du domaine « signatures publiques / constructeurs » (cpm-core). Cas d'é
 - `X(...)` n'est **pas une fonction** : c'est la syntaxe de construction de la struct, réservée
   aux tuple structs, et il n'y en a qu'une par struct (`error[E0423]` sinon — prouvé ex19).
   On ne peut donc PAS définir plusieurs « constructeurs tuple ».
+
 - En revanche les **fonctions associées** sont libres d'être plusieurs : `new(v)` (constructeur
   principal), `empty()` / `Default` (valeur vide), et le trait `From<Vec<T>>` pour le `.into()`.
+
 - DO faire déléguer `new` à `From::from` — un seul endroit construit la valeur (prouvé ex18 :
   `new` + `from` + `.into()` + `empty()` coexistent).
+
 - DO garder `new` même s'il ne fait que déléguer à `From` : `new` = convention de nommage
   (discoverable, tout le monde le cherche), `From` = conversion `.into()` / génériques
   `impl Into<...>`. Deux rôles différents, 3 lignes. Les deux coexistent quand l'argument de
