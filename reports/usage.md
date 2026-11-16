@@ -11,20 +11,20 @@ Généré le 2026-11-08T13:25:37.011788+00:00 — source `/Users/quentin/.vibe/l
 
 ## Par modèle (appels LLM journalisés, attribués au active_model de chaque session)
 
-| modèle | appels | input | output | cached | reasoning | total |
-|---|---|---|---|---|---|---|
-| mistral-large-4-0-3 | 172 | 26,775,189 | 175,791 | 24,011,008 | 78,079 | 26,950,980 |
-| unknown | 134 | 4,197,420 | 45,383 | 3,749,888 | 1,126 | 4,242,803 |
-| large | 42 | 918,309 | 16,776 | 640,256 | 5,417 | 935,085 |
-| glm | 3 | 28,800 | 9 | 14,208 | 0 | 28,809 |
-| glm-flash | 3 | 28,800 | 9 | 0 | 0 | 28,809 |
+| modèle              | appels | input      | output  | cached     | reasoning | total      |
+| ------------------- | ------ | ---------- | ------- | ---------- | --------- | ---------- |
+| mistral-large-4-0-3 | 172    | 26,775,189 | 175,791 | 24,011,008 | 78,079    | 26,950,980 |
+| unknown             | 134    | 4,197,420  | 45,383  | 3,749,888  | 1,126     | 4,242,803  |
+| large               | 42     | 918,309    | 16,776  | 640,256    | 5,417     | 935,085    |
+| glm                 | 3      | 28,800     | 9       | 14,208     | 0         | 28,809     |
+| glm-flash           | 3      | 28,800     | 9       | 0          | 0         | 28,809     |
 
 ## Par session
 
-| session | début | durée (s) | cwd | alias | modèle | prompt | completion | cached | total | coût ($) |
-|---|---|---|---|---|---|---|---|---|---|---|
-| 075d2779 | 2026-11-08T12:18:32 | 135.1 | `/Users/quentin/Documents/perso/cpm_rs` | large | large | 0 | 0 | 0 | 0 | 0.0000 |
-| 06df58af | 2026-11-08T12:22:11 | 3438.7 | `/Users/quentin/Documents/perso/cpm_rs` | mistral-large-4-0-3 | mistral-large-4-0-3 | 0 | 0 | 0 | 0 | 0.0000 |
+| session  | début               | durée (s) | cwd                                     | alias               | modèle              | prompt | completion | cached | total | coût ($) |
+| -------- | ------------------- | --------- | --------------------------------------- | ------------------- | ------------------- | ------ | ---------- | ------ | ----- | -------- |
+| 075d2779 | 2026-11-08T12:18:32 | 135.1     | `/Users/quentin/Documents/perso/cpm_rs` | large               | large               | 0      | 0          | 0      | 0     | 0.0000   |
+| 06df58af | 2026-11-08T12:22:11 | 3438.7    | `/Users/quentin/Documents/perso/cpm_rs` | mistral-large-4-0-3 | mistral-large-4-0-3 | 0      | 0          | 0      | 0     | 0.0000   |
 
 ## Rétention des données (vérifié le 2026-11-08)
 
