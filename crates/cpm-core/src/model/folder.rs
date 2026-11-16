@@ -189,7 +189,7 @@ mod tests {
     #[test]
     fn attribute_list_is_shared() {
         let f = Folder {
-            attributes: AttributeList(vec![Attribute::new("Root", vec!["Yes".to_owned()])]),
+            attributes: AttributeList::from(vec![Attribute::new("Root", vec!["Yes".to_owned()])]),
             ..Default::default()
         };
         assert_eq!(f.attributes.first_value("root"), Some("Yes"));

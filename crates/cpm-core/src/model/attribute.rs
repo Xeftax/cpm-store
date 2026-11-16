@@ -6,34 +6,26 @@
 //! REST-NMS Appendix I "RCS Object Attributes Table"; CPM populates them per
 //! the mapping table of spec §5.3.1.2.
 
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
+use std::ops::Deref;
 
 use super::kind::{Direction, MessageContext};
+
+// ===========================================================================
+// Attribute — REST-NMS §5.3.2.5 "Type: Attribute"
+// ===========================================================================
 
 /// Individual attribute — REST-NMS §5.3.2.5 "Type: Attribute".
 ///
 /// JSON shape: `{"name": "Subject", "value": ["..."]}`. Values are unencoded
-/// Unicode strings (REST-NMS §5.3.2.5).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+/// Unicode strings (REST-NMS §5.3.2.5). `value` may arrive as a single string
+/// or an array (XML-to-JSON rules of [REST_NetAPI_Common]) — hence
+/// `one_or_many` directly on the field, no manual impl needed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Attribute {
     pub name: String,
+    #[serde(default, deserialize_with = "super::one_or_many")]
     pub value: Vec<String>,
-}
-
-impl<'de> Deserialize<'de> for Attribute {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        #[derive(Deserialize)]
-        struct Helper {
-            name: String,
-            #[serde(default, deserialize_with = "super::one_or_many")]
-            value: Vec<String>,
-        }
-        let h = Helper::deserialize(deserializer)?;
-        Ok(Attribute {
-            name: h.name,
-            value: h.value,
-        })
-    }
 }
 
 impl Attribute {
@@ -45,25 +37,60 @@ impl Attribute {
     }
 }
 
-/// `AttributeList` — REST-NMS §5.3.2.6 "Type: AttributeList".
+// ===========================================================================
+// AttributeList — REST-NMS §5.3.2.6 "Type: AttributeList"
+// ===========================================================================
+
+/// Attribute list — REST-NMS §5.3.2.6 "Type: AttributeList".
 ///
 /// JSON shape: `{"attribute": [{"name": ..., "value": [...]}, ...]}`.
 /// Attribute names within the list MUST be unique (REST-NMS §5.3.2.6).
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct AttributeList(pub Vec<Attribute>);
+///
+/// Struct nommée (pas newtype) : le derive serde produit la clé `"attribute"`
+/// tout seul, aucun impl manuel. `Deref<Target = Vec<Attribute>>` génère
+/// `len()/iter()/is_empty()/...` — volontairement PAS de `DerefMut`, pour ne
+/// pas exposer `push` qui pourrait violer l'unicité des noms (§5.3.2.6).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AttributeList {
+    #[serde(default, deserialize_with = "super::one_or_many")]
+    attribute: Vec<Attribute>,
+}
+
+// ---------------------------------------------------------------------------
+// Construction : From (conversion idiomatique, .into()) + new (appel explicite)
+// ---------------------------------------------------------------------------
+
+impl From<Vec<Attribute>> for AttributeList {
+    fn from(v: Vec<Attribute>) -> Self {
+        Self { attribute: v }
+    }
+}
 
 impl AttributeList {
-    pub fn new() -> Self {
-        Self(Vec::new())
+    pub fn new(attribute: Vec<Attribute>) -> Self {
+        Self::from(attribute)
     }
+}
 
-    /// Case-insensitive attribute lookup (REST-NMS §5.3.2.5: "Message-ID",
-    /// "Message-Id" and "message-id" all refer to the same attribute).
+// Deref en lecture seule : génère len()/iter()/is_empty()/get()... de Vec.
+impl Deref for AttributeList {
+    type Target = Vec<Attribute>;
+    fn deref(&self) -> &Self::Target {
+        &self.attribute
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 1. Lookup générique — case-insensitive (REST-NMS §5.3.2.5)
+// ---------------------------------------------------------------------------
+
+impl AttributeList {
+    /// Case-insensitive attribute lookup ("Message-ID" == "message-id", §5.3.2.5).
     pub fn get(&self, name: &str) -> Option<&Attribute> {
-        self.0.iter().find(|a| a.name.eq_ignore_ascii_case(name))
+        self.iter().find(|a| a.name.eq_ignore_ascii_case(name))
     }
 
-    /// Values of a case-insensitive attribute lookup.
+    /// Values of a case-insensitive lookup.
     pub fn values(&self, name: &str) -> Option<&[String]> {
         self.get(name).map(|a| a.value.as_slice())
     }
@@ -74,49 +101,30 @@ impl AttributeList {
             .and_then(|v| v.first())
             .map(String::as_str)
     }
-
-    /// The `Message-Context` attribute (REST-NMS Appendix I; case-insensitive
-    /// enumeration, profiles may define other values).
-    pub fn message_context(&self) -> Option<MessageContext> {
-        self.first_value("Message-Context")
-            .map(MessageContext::parse)
-    }
-
-    /// The `Direction` attribute (REST-NMS Appendix I: "In" / "Out").
-    pub fn direction(&self) -> Option<Direction> {
-        self.first_value("Direction").map(Direction::parse)
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = &Attribute> {
-        self.0.iter()
-    }
 }
 
-impl Serialize for AttributeList {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        use serde::ser::SerializeMap;
-        let mut map = serializer.serialize_map(Some(1))?;
-        map.serialize_entry("attribute", &self.0)?;
-        map.end()
-    }
-}
+// ---------------------------------------------------------------------------
+// 2. Accesseurs typés (Annexe I) — un seul pattern, généré par macro
+// ---------------------------------------------------------------------------
 
-impl<'de> Deserialize<'de> for AttributeList {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        #[derive(Deserialize)]
-        struct Helper {
-            #[serde(default, deserialize_with = "super::one_or_many")]
-            attribute: Vec<Attribute>,
+macro_rules! typed_attribute {
+    ($(#[$meta:meta])* $method:ident, $name:literal, $ty:ty) => {
+        $(#[$meta])*
+        pub fn $method(&self) -> Option<$ty> {
+            self.first_value($name).map(<$ty>::parse)
         }
-        Ok(AttributeList(Helper::deserialize(deserializer)?.attribute))
+    };
+}
+
+impl AttributeList {
+    typed_attribute! {
+        /// The `Message-Context` attribute (REST-NMS Appendix I; case-insensitive
+        /// enumeration, profiles may define other values).
+        message_context, "Message-Context", MessageContext
+    }
+    typed_attribute! {
+        /// The `Direction` attribute (REST-NMS Appendix I: "In" / "Out").
+        direction, "Direction", Direction
     }
 }
 
@@ -127,7 +135,7 @@ mod tests {
     #[test]
     fn attribute_names_are_case_insensitive() {
         // REST-NMS §5.3.2.5.
-        let list = AttributeList(vec![Attribute::new(
+        let list = AttributeList::from(vec![Attribute::new(
             "Message-ID",
             vec!["abc@example.com".to_owned()],
         )]);
@@ -138,7 +146,7 @@ mod tests {
     #[test]
     fn attribute_list_json_shape() {
         // JSON shape of REST-NMS §5.3.2.6: {"attribute": [...]}.
-        let list = AttributeList(vec![Attribute::new("Subject", vec!["hi".to_owned()])]);
+        let list = AttributeList::from(vec![Attribute::new("Subject", vec!["hi".to_owned()])]);
         let v = serde_json::to_value(&list).unwrap();
         assert_eq!(
             v,
@@ -150,7 +158,7 @@ mod tests {
 
     #[test]
     fn tolerates_single_value_instead_of_array() {
-        // XML-to-JSON rules of [REST_NetAPI_Common] produce a bare string for a
+        // XML-to-JSON rules of [REST_NetAPI_Common] produce a bare value for a
         // single repeated element.
         let v = serde_json::json!({"attribute": {"name": "Date", "value": "2014-02-01T14:30:30Z"}});
         let list: AttributeList = serde_json::from_value(v).unwrap();
@@ -159,7 +167,7 @@ mod tests {
 
     #[test]
     fn typed_accessors() {
-        let list = AttributeList(vec![
+        let list = AttributeList::from(vec![
             Attribute::new("Message-Context", vec!["multimedia-message".to_owned()]),
             Attribute::new("Direction", vec!["IN".to_owned()]),
         ]);
@@ -168,5 +176,17 @@ mod tests {
             Some(MessageContext::MultimediaMessage)
         );
         assert_eq!(list.direction(), Some(Direction::In));
+    }
+
+    #[test]
+    fn deref_generates_vec_api() {
+        let list = AttributeList::from(vec![
+            Attribute::new("a", vec!["1".to_owned()]),
+            Attribute::new("b", vec!["2".to_owned()]),
+        ]);
+        // méthodes de Vec disponibles sans être écrites à la main :
+        assert_eq!(list.len(), 2);
+        assert!(!list.is_empty());
+        assert_eq!(list.iter().count(), 2);
     }
 }
