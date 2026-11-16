@@ -11,6 +11,9 @@ and by `_check.yml` around a check that passed: to put a workflow's handed-over 
 the checkout (`lay-changes`), then to name the marker that records the verdict (`key`).
 Everything arrives through the environment and leaves through $GITHUB_OUTPUT.
 
+`scope-glob <glob>...` is the classifier a `scope` written as a list of globs runs: the
+changed paths on stdin, `all` or `none` on stdout.
+
   prepare
     CHECK_ID, EVENT            the check and `github.event_name`
     CHECK_ENV                  JSON object, name to value: the check's `var:` entries, exported to the
@@ -39,6 +42,9 @@ Everything arrives through the environment and leaves through $GITHUB_OUTPUT.
   export-env
     CHECK_ENV                  JSON object, name to value: the check's `var:` entries
     CHECK_SECRET_ENV           JSON object, name to value: its `secret:` entries
+    CHECK_SECRET_NAMES         JSON object, name to secret name: the `secret:` entries of a check with an
+                               environment, looked up in CHECK_SECRETS
+    CHECK_SECRETS              JSON object, secret name to value: that environment's DOCKYARD_CHECK_SECRETS
     CHECK_DISPATCH             JSON object, option name to the choice a manual run gave it
     RUNNER_TEMP                where the `check.env` file the run step sources is written
 
@@ -82,7 +88,7 @@ import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 ALL = "all"
 NONE = "none"
@@ -276,8 +282,8 @@ def compute_scope(scope_cmd: str, event: str, base_sha: str, environ: Mapping[st
 def tree_listing(exclude: Sequence[str], environ: Mapping[str, str]) -> bytes:
     """Return `git ls-tree -r HEAD`, minus the tracked files any `exclude` glob matches.
 
-    The same listing the `verdict-cache` action hashes, so the two read each other's
-    markers. Without a glob it is the plain listing; git itself evaluates the globs.
+    The listing the cache key hashes, so a tree that did not change keeps its key.
+    Without a glob it is the plain listing; git itself evaluates the globs.
     """
     plain = ["git", "ls-tree", "-r", "HEAD"]
     if not exclude:
@@ -296,8 +302,7 @@ def verdict_name(
     """Return the marker name for this check, content and scope, or None when the key cannot be computed.
 
     The check id leads the key: the name is the verdict, so without it a check that passed
-    would skip any other check run on the same tree and scope. A blank id gives the key the
-    `verdict-cache` action computes without its `check-id` input.
+    would skip any other check run on the same tree and scope. A blank id gives a key with no owner.
     """
     tree = hashlib.sha256(tree_listing(exclude, environ)).hexdigest()
     slug = scope.replace("/", "-").replace(",", "_")
@@ -557,6 +562,27 @@ def dispatch_exports(dispatch: Mapping[str, str | None]) -> list[str]:
     return lines
 
 
+# The one secret an environment holds for the checks that declare it: a JSON object, secret
+# name to value. `_check.yml` declares it by this name because GitHub hands a called workflow
+# an environment's secret only under a name the workflow declares.
+ENVIRONMENT_SECRETS = "DOCKYARD_CHECK_SECRETS"
+
+
+def named_secrets(environ: Mapping[str, str]) -> dict[str, str | None]:
+    """Pick the secrets CHECK_SECRET_NAMES names out of the environment's JSON, keyed by their exported names."""
+    names = read_env_object(environ.get("CHECK_SECRET_NAMES", ""), "CHECK_SECRET_NAMES")
+    if not names:
+        return {}
+    available = read_env_object(environ.get("CHECK_SECRETS", ""), ENVIRONMENT_SECRETS)
+    picked: dict[str, str | None] = {}
+    for name, secret in names.items():
+        if not secret or not ENV_NAME.match(secret):
+            message = f"{name} names the secret '{secret}', which is not an UPPER_SNAKE secret a check may read"
+            raise EnvError(message)
+        picked[name] = available.get(secret)
+    return picked
+
+
 def export_env(environ: Mapping[str, str]) -> dict[str, str]:
     """Write the file the run step sources, and return `unavailable` when a secret it names is not set.
 
@@ -566,7 +592,7 @@ def export_env(environ: Mapping[str, str]) -> dict[str, str]:
     """
     variables = read_env_object(environ.get("CHECK_ENV", ""), "CHECK_ENV")
     dispatch = read_env_object(environ.get("CHECK_DISPATCH", ""), "CHECK_DISPATCH")
-    secrets = read_env_object(environ.get("CHECK_SECRET_ENV", ""), "CHECK_SECRET_ENV")
+    secrets = read_env_object(environ.get("CHECK_SECRET_ENV", ""), "CHECK_SECRET_ENV") | named_secrets(environ)
     lines: list[str] = []
     missing: list[str] = []
     lines.extend(dispatch_exports(dispatch))
@@ -585,7 +611,12 @@ def export_env(environ: Mapping[str, str]) -> dict[str, str]:
                         say(f"::add-mask::{line}")
             lines.append(f"export {name}={shlex.quote(value)}\n")
     if missing:
-        return {"unavailable": f"the secret behind {', '.join(missing)} is not set in this repository"}
+        where = (
+            f"the {ENVIRONMENT_SECRETS} secret of the check's environment"
+            if environ.get("CHECK_SECRET_NAMES")
+            else "this repository"
+        )
+        return {"unavailable": f"the secret behind {', '.join(missing)} is not set in {where}"}
     target = Path(environ.get("RUNNER_TEMP", ".")) / ENV_FILE
     target.write_text("".join(lines))
     target.chmod(0o600)
@@ -641,11 +672,29 @@ def write_outputs(environ: Mapping[str, str], values: Mapping[str, str]) -> None
         sys.stdout.write(lines)
 
 
+def scope_glob(paths: Sequence[str], globs: Sequence[str]) -> str:
+    """Return `all` when a changed path matches one of `globs`, else `none`: a glob-list `scope`'s classifier.
+
+    `PurePosixPath.full_match`, so `*` stays inside a segment and `**` crosses them, as in a
+    workflow's `paths:` filter. No match is `none`, which passes the check without running it;
+    an empty diff never reaches here, `prepare` reads it as the whole check first.
+    """
+    matched = any(PurePosixPath(path).full_match(glob) for path in paths if path for glob in globs)
+    return "all" if matched else "none"
+
+
 def main(argv: Sequence[str], environ: Mapping[str, str] | None = None) -> int:
     """Run one subcommand against the environment; return the exit status."""
-    env = os.environ if environ is None else environ
+    if argv[:1] == ["scope-glob"] and len(argv) > 1:
+        sys.stdout.write(scope_glob(sys.stdin.read().splitlines(), argv[1:]) + "\n")
+        return 0
+    return _engine_command(argv, os.environ if environ is None else environ)
+
+
+def _engine_command(argv: Sequence[str], env: Mapping[str, str]) -> int:
+    """Run one of the subcommands the engine's workflows call, reading their environment."""
     if len(argv) != 1 or argv[0] not in {"prepare", "key", "lay-changes", "export-env"}:
-        print("usage: check_prepare.py prepare|key|lay-changes|export-env", file=sys.stderr)
+        print("usage: check_prepare.py prepare|key|lay-changes|export-env|scope-glob <glob>...", file=sys.stderr)
         return 2
     if argv[0] == "export-env":
         try:

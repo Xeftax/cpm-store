@@ -15,7 +15,8 @@
 set -euo pipefail
 
 if [[ -f src/dockyard/sync.py ]]; then
-  exec uv run --project . dockyard sync
+  # `--frozen`: the check proposes what sync renders, never a re-resolved `uv.lock`.
+  exec uv run --frozen --project . dockyard sync
 fi
 
 [[ -f _source/pyproject.toml ]] || {

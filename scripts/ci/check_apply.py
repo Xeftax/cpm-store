@@ -30,7 +30,11 @@ newer copy.
   CHECK_REMOTE   where to push (default: the repo on github.com, authenticated by APP_TOKEN)
 
 Writes `result` (success|failure) and `blocking` (true|false) to $GITHUB_OUTPUT when it
-is set, and exits 1 exactly when `blocking` is true. A git or gh call that fails
+is set, and exits 1 exactly when `blocking` is true. A failure tracked as a draft PR also
+writes `tracked`, the branch that PR is opened from: it is written only once the PR exists
+(or already did), so a job that wants to work on that PR can tell it is there. Beside it,
+`command-failed` says whether the check's own command failed: a check tracked only because it
+changed a workflow file, which the bot never pushes, has nothing for such a job to fix. A git or gh call that fails
 unexpectedly ends the run with that command's exit status and no outputs.
 
 On a merge queue candidate `pr` proposes the changes to the PR the queue ref names, exactly
@@ -73,11 +77,13 @@ QUEUE_REF = re.compile(r"(?:^|/)gh-readonly-queue/.+/pr-(\d+)-[0-9a-f]{40}$")
 class Finish(Exception):  # noqa: N818 -- a verdict, not an error
     """The run's verdict; `main` turns it into outputs and an exit status."""
 
-    def __init__(self, result: str, blocking: bool) -> None:
-        """Carry the verdict."""
-        super().__init__(result, blocking)
+    def __init__(self, result: str, blocking: bool, tracked: str = "", *, command_failed: bool = False) -> None:
+        """Carry the verdict, the branch of the PR a failure was tracked on if any, and whether the command failed."""
+        super().__init__(result, blocking, tracked, command_failed)
         self.result = result
         self.blocking = blocking
+        self.tracked = tracked
+        self.command_failed = command_failed
 
 
 class MissingVariableError(Exception):
@@ -326,6 +332,9 @@ class Applier:
         self.cfg = cfg
         self.shell = shell
         self.failed = cfg.exit_status != "0"
+        # Kept apart from `failed`, which a workflow-file change also sets: whoever reads the tracked
+        # PR to fix something needs to know whether the command itself failed.
+        self.command_failed = self.failed
         self.staged: list[str] = []
         self.changes = ""
         self.workflow_files: list[str] = []
@@ -701,7 +710,7 @@ class Applier:
             )
             self.push_branch(branch)
             self.create_pr(base=base, head=branch, body=self.failure_body(), draft=True, label=FAILED_LABEL)
-        raise Finish("failure", True)
+        raise Finish("failure", True, tracked=branch, command_failed=self.command_failed)
 
     def save_changes(self, work: Path) -> Saved:
         """Save the changed files (in a tar) and the deletions, to lay onto another base.
@@ -806,6 +815,10 @@ def report(cfg: Config, verdict: Finish) -> int:
     if cfg.github_output:
         with Path(cfg.github_output).open("a", encoding="utf-8") as out:
             out.write(f"result={result}\nblocking={blocking}\n")
+            if verdict.tracked:
+                out.write(
+                    f"tracked={verdict.tracked}\ncommand-failed={'true' if verdict.command_failed else 'false'}\n"
+                )
     say(f"check {cfg.check_id}: {result} (blocking: {blocking})")
     return 1 if verdict.blocking else 0
 

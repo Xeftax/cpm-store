@@ -2,8 +2,8 @@
 #
 # `exclude` is rendered from exclude.toml's [groups] table by dockyard.exclusions, same
 # as every other target's own exclusion key — edit a group there, not the array here.
-# Requires Python 3.13+ (mdformat itself refuses the key otherwise); every dockyard
-# Python repo already is.
+# Requires Python 3.13+ (mdformat itself refuses the key otherwise): `scripts/ci/format-markdown.sh`
+# asks `uvx` for 3.13 itself, so the interpreter a repo defaults to does not matter.
 wrap = "keep"
 number = true
 end_of_line = "lf"

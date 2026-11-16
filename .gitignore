@@ -46,17 +46,21 @@ site-packages/
 # build-outputs
 target/
 
-# rust-lockfile
-/Cargo.lock
+# node-modules
+node_modules/
+
+# typescript-extras
+.eslintcache
+.next/
+.turbo/
+*.tsbuildinfo
+coverage/
+.vite/
 
 # iac-state
 .terraform/
 
 # tool-reports
-gitleaks-report.json
-test-output.txt
-
-# python-reports
 ruff-check.txt
 ruff-format.txt
 mypy-check.txt
@@ -65,11 +69,18 @@ htmlcov/
 .coverage*
 bandit-report.json
 bandit-summary.md
+semgrep-report.json
+semgrep-summary.md
+gitleaks-report.json
 test-results*.xml
+test-output.txt
+eslint-check.txt
+tsc-check.txt
+vitest-check.txt
 
-# rust-reports
-clippy.txt
-deny-report.txt
+# check-workspace
+_source/
+trivy-reports/
 
 # os-noise
 # dockyard:keep:start oma-specs-not-redistributable
