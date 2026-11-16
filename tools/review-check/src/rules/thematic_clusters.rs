@@ -58,7 +58,7 @@ impl Rule for ThematicClusters {
                 // bannière de section dans les 5 lignes précédant le premier membre ?
                 let has_banner = (first_line.saturating_sub(5)..first_line)
                     .filter_map(|i| i.checked_sub(1).and_then(|j| src_lines.get(j)))
-                    .any(|l| l.trim_start().starts_with("// ="));
+                    .any(|l| super::is_section_banner(l));
                 Candidate {
                     line: first_line,
                     violation: !has_banner,

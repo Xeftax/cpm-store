@@ -48,6 +48,13 @@ pub fn line_of<T: Spanned>(n: &T) -> usize {
     n.span().start().line
 }
 
+/// Bannière de section reconnue : `// ==== Titre ====` (section) ou
+/// `// ---- Titre ----` (sous-section) — 3+ signes identiques après `// `.
+pub fn is_section_banner(l: &str) -> bool {
+    let t = l.trim_start();
+    t.starts_with("// ===") || t.starts_with("// ---")
+}
+
 pub fn structs(ast: &syn::File) -> impl Iterator<Item = &ItemStruct> {
     ast.items.iter().filter_map(|i| match i {
         Item::Struct(s) => Some(s),
@@ -116,6 +123,11 @@ mod tests {
         assert_eq!(violations(&r, "fn f() { struct H { x: u8 } }"), vec![1]);
         assert!(violations(&r, "fn g() {}").is_empty());
         assert!(violations(&r, "struct Top;").is_empty());
+        // le Helper peut aussi vivre dans une méthode d'impl (cas attribute.rs PR #3)
+        assert_eq!(
+            violations(&r, "impl A { fn f() { struct H { x: u8 } } }"),
+            vec![1]
+        );
     }
 
     #[test]
@@ -163,6 +175,8 @@ impl AttributeList {
         assert_eq!(violations(&r, &big).len(), 1);
         let with_banner = format!("// ==== Section ====\n{big}");
         assert!(violations(&r, &with_banner).is_empty());
+        let with_dash_banner = format!("// ---- Section ----\n{big}");
+        assert!(violations(&r, &with_dash_banner).is_empty());
         let small = "fn a() {}\nfn b() {}".to_string();
         assert!(violations(&r, &small).is_empty());
     }
@@ -187,7 +201,7 @@ impl L {
             c[0].violation,
             "pas de bannière // ==== au-dessus -> violation"
         );
-        // avec une bannière au-dessus -> conforme
+        // avec une bannière au-dessus -> conforme (section // ==== ou sous-section // ----)
         let with_banner = format!("// ==== Lookup ====\n{src}");
         let ast2 = syn::parse_file(&with_banner).unwrap();
         assert!(r

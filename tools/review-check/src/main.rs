@@ -16,22 +16,34 @@ use checker::Mode;
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let mut mode = Mode::Diff;
     let mut gcc = false;
+    let mut all = false;
+    let mut watch_flag = false;
+    let mut audit: Option<String> = None;
     let mut positional: Vec<&str> = Vec::new();
     for a in &args {
         if a == "--format=gcc" {
             gcc = true;
         } else if a == "--all" {
-            mode = Mode::All;
-        } else if let Some(id) = a.strip_prefix("--audit=") {
-            mode = Mode::Audit(id.to_string());
+            all = true;
         } else if a == "--watch" {
-            mode = Mode::Watch;
+            watch_flag = true;
+        } else if let Some(id) = a.strip_prefix("--audit=") {
+            audit = Some(id.to_string());
         } else {
             positional.push(a);
         }
     }
+    // précédence fixe, indépendante de l'ordre des flags : audit > watch > all > diff
+    let mode = if let Some(id) = audit {
+        Mode::Audit(id)
+    } else if watch_flag {
+        Mode::Watch
+    } else if all {
+        Mode::All
+    } else {
+        Mode::Diff
+    };
     let base = positional.first().copied().unwrap_or("main");
     let refr = positional.get(1).copied().unwrap_or("HEAD");
 

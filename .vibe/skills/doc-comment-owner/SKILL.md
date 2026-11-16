@@ -34,14 +34,17 @@ sections thématiques `// ===`, tests inline).
   forme JSON attendue, case-insensitivity §5.3.2.5).
 - **Test de valeur** (porté de python-quality) : un commentaire n'est utile que s'il apporte une
   information **non déductible du nom + signature + types**. Si le nom suffit, one-liner minimal.
-- DON'T de sections `Args:`/`Returns:`` à la python — les types Rust sont la source de vérité.
+- DON'T de sections `Args:`/\`Returns:\`\` à la python — les types Rust sont la source de vérité.
 - DON'T de commentaires qui paraphrasent le code ou documentent la pensée de l'auteur
   (« ici on fait ça parce que... ») : un commentaire décrit le comportement, pas la délibération.
 
 ### organisation visuelle
 
 - DO découper un fichier long en sections thématiques avec bannière :
-  `// ====== Titre ======` (déclaration / lookup / accesseurs / serde / tests).
+  `// ====== Titre ======` (déclaration / lookup / accesseurs / serde / tests), et
+  `// ------ Titre ------` pour les sous-sections numérotées à l'intérieur
+  (ex. « 1. Lookup », « 2. Accesseurs typés » — référence : PR #12 attribute.rs).
+  Le linter review-check reconnaît les deux styles (`is_section_banner`).
 - DO placer les tests unitaires en bas de fichier dans `#[cfg(test)] mod tests` — c'est la
   convention Rust (compilés uniquement par `cargo test`, invisibles en build normal).
 
