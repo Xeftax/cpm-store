@@ -97,20 +97,23 @@ mod tests {
         assert_eq!(violations(&r, "pub struct A(pub Vec<u8>);"), vec![1]);
         // conforme : champ privé
         let ast = syn::parse_file("struct B(Vec<u8>);").unwrap();
-        assert!(r.candidates(&ast, "struct B(Vec<u8>);").iter().all(|c| !c.violation));
+        assert!(r
+            .candidates(&ast, "struct B(Vec<u8>);")
+            .iter()
+            .all(|c| !c.violation));
         // hors périmètre : struct nommée
         assert!(r
-            .candidates(&syn::parse_file("struct C { x: u8 }").unwrap(), "struct C { x: u8 }")
+            .candidates(
+                &syn::parse_file("struct C { x: u8 }").unwrap(),
+                "struct C { x: u8 }"
+            )
             .is_empty());
     }
 
     #[test]
     fn helper_detects_struct_in_fn_only() {
         let r = helper_in_fn::HelperInFn;
-        assert_eq!(
-            violations(&r, "fn f() { struct H { x: u8 } }"),
-            vec![1]
-        );
+        assert_eq!(violations(&r, "fn f() { struct H { x: u8 } }"), vec![1]);
         assert!(violations(&r, "fn g() {}").is_empty());
         assert!(violations(&r, "struct Top;").is_empty());
     }
@@ -118,10 +121,7 @@ mod tests {
     #[test]
     fn manual_serde_impl_detects_serialize_impls() {
         let r = manual_serde_impl::ManualSerdeImpl;
-        assert_eq!(
-            violations(&r, "impl serde::Serialize for A {}"),
-            vec![1]
-        );
+        assert_eq!(violations(&r, "impl serde::Serialize for A {}"), vec![1]);
         assert_eq!(
             violations(&r, "impl<'de> Deserialize<'de> for A {}"),
             vec![1]
@@ -146,13 +146,20 @@ impl AttributeList {
 }
 "#;
         let v = violations(&r, src);
-        assert_eq!(v.len(), 2, "les deux fns dupliquées doivent être flaguées: {v:?}");
+        assert_eq!(
+            v.len(),
+            2,
+            "les deux fns dupliquées doivent être flaguées: {v:?}"
+        );
     }
 
     #[test]
     fn file_sections_flags_big_file_without_banners() {
         let r = file_sections::FileSections;
-        let big = (0..12).map(|i| format!("fn f{i}() {{}}")).collect::<Vec<_>>().join("\n");
+        let big = (0..12)
+            .map(|i| format!("fn f{i}() {{}}"))
+            .collect::<Vec<_>>()
+            .join("\n");
         assert_eq!(violations(&r, &big).len(), 1);
         let with_banner = format!("// ==== Section ====\n{big}");
         assert!(violations(&r, &with_banner).is_empty());
@@ -176,11 +183,17 @@ impl L {
         let ast = syn::parse_file(src).unwrap();
         let c = r.candidates(&ast, src);
         assert_eq!(c.len(), 1, "un seul cluster de taille >= 3: {c:?}");
-        assert!(c[0].violation, "pas de bannière // ==== au-dessus -> violation");
+        assert!(
+            c[0].violation,
+            "pas de bannière // ==== au-dessus -> violation"
+        );
         // avec une bannière au-dessus -> conforme
         let with_banner = format!("// ==== Lookup ====\n{src}");
         let ast2 = syn::parse_file(&with_banner).unwrap();
-        assert!(r.candidates(&ast2, &with_banner).iter().all(|c| !c.violation));
+        assert!(r
+            .candidates(&ast2, &with_banner)
+            .iter()
+            .all(|c| !c.violation));
     }
 
     #[test]
@@ -203,7 +216,11 @@ impl L {
             vec![1]
         );
         // conforme : logique métier ajoutée
-        assert!(violations(&r, "impl A { fn get(&self, n: &str) -> bool { self.0.contains(n) } }").is_empty());
+        assert!(violations(
+            &r,
+            "impl A { fn get(&self, n: &str) -> bool { self.0.contains(n) } }"
+        )
+        .is_empty());
         // conforme : nom différent de l'appel interne
         assert!(violations(&r, "impl A { fn size(&self) -> usize { self.0.len() } }").is_empty());
     }

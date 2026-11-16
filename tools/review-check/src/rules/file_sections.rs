@@ -14,13 +14,8 @@ impl Rule for FileSections {
     }
 
     fn candidates(&self, ast: &syn::File, src: &str) -> Vec<Candidate> {
-        let has_sections = src
-            .lines()
-            .any(|l| l.trim_start().starts_with("// ="));
+        let has_sections = src.lines().any(|l| l.trim_start().starts_with("// ="));
         let violation = ast.items.len() > MAX_ITEMS_WITHOUT_SECTIONS && !has_sections;
-        vec![Candidate {
-            line: 1,
-            violation,
-        }]
+        vec![Candidate { line: 1, violation }]
     }
 }

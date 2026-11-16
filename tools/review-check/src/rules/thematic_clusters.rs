@@ -8,7 +8,7 @@
 //! + accesseurs typés" (attribute.rs, PR #3).
 
 use super::{fns, impl_methods, line_of, Candidate, Rule};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use syn::visit::Visit;
 
 const MIN_CLUSTER: usize = 3;
@@ -57,7 +57,7 @@ impl Rule for ThematicClusters {
                 let first_line = members.iter().map(|n| fn_lines[n]).min().unwrap_or(1);
                 // bannière de section dans les 5 lignes précédant le premier membre ?
                 let has_banner = (first_line.saturating_sub(5)..first_line)
-                    .filter_map(|i| src_lines.get(i - 1))
+                    .filter_map(|i| i.checked_sub(1).and_then(|j| src_lines.get(j)))
                     .any(|l| l.trim_start().starts_with("// ="));
                 Candidate {
                     line: first_line,

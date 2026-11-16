@@ -14,9 +14,15 @@ pub fn print(findings: &[Finding], n_files: usize, mode: &Mode, gcc: bool, scope
             }
         } else if matches!(mode, Mode::Audit(_)) {
             let status = if f.violation { "VIOLATION" } else { "ok" };
-            println!("{status} [{}] {}:{}: {}", f.rule_id, f.path, f.line, f.snippet);
+            println!(
+                "{status} [{}] {}:{}: {}",
+                f.rule_id, f.path, f.line, f.snippet
+            );
         } else if f.violation {
-            println!("warning[{}] {}:{}: {}", f.rule_id, f.path, f.line, f.snippet);
+            println!(
+                "warning[{}] {}:{}: {}",
+                f.rule_id, f.path, f.line, f.snippet
+            );
             println!("    -> {}", f.message);
         }
     }
