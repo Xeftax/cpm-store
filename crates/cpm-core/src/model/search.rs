@@ -9,6 +9,8 @@ use super::flags::FlagList;
 use super::folder::{ObjectReferenceList, Reference};
 use super::imdn::ImdnInfo;
 
+// ==== Enumerations (REST-NMS §5.3.3) ====
+
 /// `SearchTypeEnum` — REST-NMS §5.3.3.1.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SearchType {
@@ -53,6 +55,8 @@ pub enum Operation {
     AddFlag,
     RemoveFlag,
 }
+
+// ==== Search / sort / selection criteria (REST-NMS §5.3.2.17–§5.3.2.21) ====
 
 /// `SearchCriterion` — REST-NMS §5.3.2.19.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -128,6 +132,8 @@ pub struct SelectionCriteria {
     pub inline_imdn: Option<bool>,
 }
 
+// ==== Bulk operations (REST-NMS §5.3.2.15–§5.3.2.16, §5.3.2.33–§5.3.2.34) ====
+
 /// `BulkUpdate` — REST-NMS §5.3.2.15 (JSON root element `bulkUpdate`); body of
 /// the bulk update operation (spec §7.3.3.7, §6.6.2).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -173,6 +179,8 @@ pub struct BulkResponse {
     pub failure: Option<RequestError>,
 }
 
+// ==== RequestError ([REST_NetAPI_Common]) ====
+
 /// Kind of a `common:RequestError` exception ([REST_NetAPI_Common]):
 /// `policyException` or `serviceException`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -197,18 +205,35 @@ pub struct RequestError {
     pub variables: Option<Vec<String>>,
 }
 
+/// Borrowed wire form of the `RequestError` body (camelCase,
+/// [REST_NetAPI_Common]); the exception is wrapped under its kind key.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RequestErrorBodyRef<'a> {
+    message_id: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    text: &'a Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    variables: &'a Option<Vec<String>>,
+}
+
+/// Owned wire form of the `RequestError` body, for parsing.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RequestErrorBody {
+    message_id: String,
+    #[serde(default)]
+    text: Option<String>,
+    #[serde(default)]
+    variables: Option<Vec<String>>,
+}
+
+// RequestError est enveloppée sous la clé de son kind (policyException/serviceException),
+// son kind (policyException/serviceException), forme non exprimable par un
+// review: ignore manual-serde-impl
 impl Serialize for RequestError {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         use serde::ser::SerializeMap;
-        #[derive(Serialize)]
-        #[serde(rename_all = "camelCase")]
-        struct Ex<'a> {
-            message_id: &'a str,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            text: &'a Option<String>,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            variables: &'a Option<Vec<String>>,
-        }
         let mut map = serializer.serialize_map(Some(1))?;
         let kind = match self.kind {
             RequestErrorKind::Policy => "policyException",
@@ -216,7 +241,7 @@ impl Serialize for RequestError {
         };
         map.serialize_entry(
             kind,
-            &Ex {
+            &RequestErrorBodyRef {
                 message_id: &self.message_id,
                 text: &self.text,
                 variables: &self.variables,
@@ -226,6 +251,9 @@ impl Serialize for RequestError {
     }
 }
 
+// Parse : accepte la forme enveloppée requestError et la forme embarquée policyException
+// {"requestError": {...}} et la forme embarquée {"policyException": {...}}
+// review: ignore manual-serde-impl
 impl<'de> Deserialize<'de> for RequestError {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         use serde::de::Error as _;
@@ -243,16 +271,7 @@ impl<'de> Deserialize<'de> for RequestError {
                 "requestError: expected policyException or serviceException",
             ));
         };
-        #[derive(Deserialize)]
-        #[serde(rename_all = "camelCase")]
-        struct Ex {
-            message_id: String,
-            #[serde(default)]
-            text: Option<String>,
-            #[serde(default)]
-            variables: Option<Vec<String>>,
-        }
-        let ex: Ex = serde_json::from_value(ex).map_err(D::Error::custom)?;
+        let ex: RequestErrorBody = serde_json::from_value(ex).map_err(D::Error::custom)?;
         Ok(RequestError {
             kind,
             message_id: ex.message_id,
@@ -278,6 +297,8 @@ pub struct BulkResponseList {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cursor: Option<String>,
 }
+
+// ==== Tests ====
 
 #[cfg(test)]
 mod tests {

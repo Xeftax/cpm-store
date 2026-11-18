@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use super::attribute::AttributeList;
 
+// ==== References (REST-NMS §5.3.2.10–§5.3.2.14) ====
 /// Reference to a stored object or folder — REST-NMS §5.3.2.11
 /// (JSON root element `reference`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -74,6 +75,7 @@ pub struct TargetSourceRef {
     pub source_refs: ReferenceList,
 }
 
+// ==== Folder (REST-NMS §5.3.2.8) ====
 /// `Folder` — REST-NMS §5.3.2.8 "Type: Folder" (JSON root element `folder`).
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -110,6 +112,7 @@ pub struct Folder {
     pub objects: Option<ObjectReferenceList>,
 }
 
+// ==== Folder lists (REST-NMS §5.3.2.9, §5.3.2.32) ====
 /// Root element `folder` wrapping a [`Folder`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FolderEnvelope {
@@ -141,6 +144,7 @@ pub struct FolderListEnvelope {
     pub folder_list: FolderList,
 }
 
+// ==== Tests ====
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -189,7 +193,7 @@ mod tests {
     #[test]
     fn attribute_list_is_shared() {
         let f = Folder {
-            attributes: AttributeList(vec![Attribute::new("Root", vec!["Yes".to_owned()])]),
+            attributes: AttributeList::from(vec![Attribute::new("Root", vec!["Yes".to_owned()])]),
             ..Default::default()
         };
         assert_eq!(f.attributes.first_value("root"), Some("Yes"));

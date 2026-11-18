@@ -12,6 +12,7 @@ use super::attribute::AttributeList;
 use super::flags::FlagList;
 use super::imdn::ImdnList;
 
+// ==== Event types (REST-NMS §5.3.2.25–§5.3.2.31) ====
 /// `Link` — `common:Link` ([REST_NetAPI_Common]); `rel` values "folder" and
 /// "nmsSubscription" are defined by REST-NMS §5.3.4.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -122,6 +123,7 @@ pub enum NmsEvent {
     ResetBox(ResetBox),
 }
 
+// ==== Event list (REST-NMS §5.3.2.26) ====
 /// `NmsEventList` — REST-NMS §5.3.2.26 (JSON root element `nmsEventList`),
 /// body of notification requests (spec §7.3.1.2).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -153,6 +155,7 @@ pub struct NmsEventListEnvelope {
     pub nms_event_list: NmsEventList,
 }
 
+// ==== Tests ====
 #[cfg(test)]
 mod tests {
     use super::*;

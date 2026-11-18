@@ -18,6 +18,7 @@ use super::attribute::AttributeList;
 use super::flags::{FlagList, MetadataFlag};
 use super::object::NmsObject;
 
+// ==== MessageContext — REST-NMS Appendix I ====
 /// Value of the `Message-Context` attribute (REST-NMS Appendix I; CPM-REST
 /// §5.3.2/§5.3.10 and annexes C–H). Case-insensitive.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -83,12 +84,15 @@ impl MessageContext {
     }
 }
 
+// ---- Wire mapping (serde) : as_str / parse, case-insensitive (REST-NMS §5.3.2.4) ----
+// review: ignore manual-serde-impl — enum a mapping custom de variantes (chaines wire via as_str/parse) ; un derive ne peut pas l'exprimer (voir known-patterns when_not_applicable)
 impl Serialize for MessageContext {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.serialize_str(&self.as_str())
     }
 }
 
+// review: ignore manual-serde-impl — idem : deserialisation via parse (variantes custom, REST-NMS Appendix I)
 impl<'de> Deserialize<'de> for MessageContext {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let s = String::deserialize(deserializer)?;
@@ -96,6 +100,7 @@ impl<'de> Deserialize<'de> for MessageContext {
     }
 }
 
+// ==== Direction — REST-NMS Appendix I ====
 /// Value of the `Direction` attribute (REST-NMS Appendix I: "In" for incoming
 /// traffic, "Out" for traffic outgoing from the CPM User — mapping table of
 /// spec §5.3.1.2). Case-insensitive in practice.
@@ -122,6 +127,7 @@ impl Direction {
     }
 }
 
+// ==== CpmObjectKind — classification des objets (spec §5.3) ====
 /// The kind of a CPM storage object — spec §5.3.1 (message object), §5.3.2
 /// (file transfer history), §5.3.3 (session info), §5.3.4 (group state),
 /// §5.3.5 (stand-alone media), §5.3.9 (non-CPM objects, call log), §5.3.10
@@ -183,17 +189,18 @@ pub(crate) fn cpm_kind(attributes: &AttributeList, flags: &FlagList) -> CpmObjec
     }
 }
 
+// ==== Tests ====
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::model::attribute::Attribute;
 
     fn attrs(pairs: &[(&str, &str)]) -> AttributeList {
-        AttributeList(
+        AttributeList::from(
             pairs
                 .iter()
                 .map(|(n, v)| Attribute::new(*n, vec![(*v).to_owned()]))
-                .collect(),
+                .collect::<Vec<_>>(),
         )
     }
 
@@ -252,7 +259,7 @@ mod tests {
             CpmObjectKind::Message
         );
         assert_eq!(
-            cpm_kind(&AttributeList::new(), &empty),
+            cpm_kind(&AttributeList::default(), &empty),
             CpmObjectKind::Message
         );
     }
@@ -268,6 +275,9 @@ mod tests {
         );
         let mut vvm = FlagList::new();
         vvm.insert(MetadataFlag::parse("$CPM_VVM"));
-        assert_eq!(cpm_kind(&AttributeList::new(), &vvm), CpmObjectKind::NonCpm);
+        assert_eq!(
+            cpm_kind(&AttributeList::default(), &vvm),
+            CpmObjectKind::NonCpm
+        );
     }
 }

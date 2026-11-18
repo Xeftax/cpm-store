@@ -26,6 +26,7 @@ use cpm_core::model::*;
 const CPM_REST: &str = "OMA-TS-CPM_Message_Storage_Using_RESTFul_API-V1_0-20200907-C";
 const REST_NMS: &str = "OMA-TS-REST_NetAPI_NMS-V1_0-20190528-C";
 
+// ==== Spec source extraction (PDF-first, ADR D9) ====
 fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
@@ -69,6 +70,7 @@ fn spec_text(spec: &str) -> Option<(String, Source)> {
     None
 }
 
+// ==== Noise stripping ====
 /// Drops PDF page headers/footers that pdftotext interleaves with the content.
 fn strip_noise(text: &str) -> String {
     text.replace('\u{000c}', "")
@@ -89,6 +91,7 @@ fn strip_noise(text: &str) -> String {
         .join("\n")
 }
 
+// ==== JSON candidate extraction (PDF artifact repair) ====
 /// Extracts balanced-brace JSON candidates from free text (HTTP traces in the
 /// annexes mix headers and JSON; only the JSON part is kept).
 ///
@@ -214,6 +217,7 @@ fn write_fixture(spec: &str, idx: usize, v: &serde_json::Value) {
     std::fs::write(path, serde_json::to_string_pretty(v).expect("json")).expect("fixture write");
 }
 
+// ==== Round-trip assertion ====
 /// Parses `v` into `T`, serializes back, re-parses, and asserts a fixed point.
 fn assert_round_trip<T>(v: &serde_json::Value) -> T
 where
@@ -228,6 +232,7 @@ where
     t
 }
 
+// ==== Golden tests (spec annexes) ====
 /// Annexes C–H of [CPM-REST]: message/session/file-transfer/group-state/
 /// call-log object examples.
 #[test]

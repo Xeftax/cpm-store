@@ -9,29 +9,32 @@
 use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::fmt;
+use std::ops::{Deref, DerefMut};
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+// ==== MetadataFlag — REST-NMS Appendix H "Flag Names Table" ====
 
 /// A metadata flag associated with an object or folder (spec §5.6).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum MetadataFlag {
-    /// `\Seen` — message has been read (spec §5.6).
+    /// `\\Seen` — message has been read (spec §5.6).
     Seen,
-    /// `\Answered` — message has been answered (spec §5.6).
+    /// `\\Answered` — message has been answered (spec §5.6).
     Answered,
-    /// `\Flagged` — message is flagged for urgent/special attention (spec §5.6).
+    /// `\\Flagged` — message is flagged for urgent/special attention (spec §5.6).
     Flagged,
-    /// `\Deleted` — marked for removal by a later EXPUNGE (spec §5.6).
+    /// `\\Deleted` — marked for removal by a later EXPUNGE (spec §5.6).
     Deleted,
-    /// `\Draft` — composition not completed (spec §5.6).
+    /// `\\Draft` — composition not completed (spec §5.6).
     Draft,
-    /// `\Recent` — recently arrived in this mailbox (spec §5.6).
+    /// `\\Recent` — recently arrived in this mailbox (spec §5.6).
     Recent,
     /// `$MDNSent` — a disposition notification has been sent (REST-NMS Appendix H).
     MdnSent,
     /// `$Forwarded` — message has been forwarded (spec §5.6).
     Forwarded,
-    /// `\read-report-sent` — a read receipt has been sent (spec §5.6).
+    /// `\\read-report-sent` — a read receipt has been sent (spec §5.6).
     ReadReportSent,
     /// `Archived` — message is archived (spec §5.6).
     Archived,
@@ -39,6 +42,8 @@ pub enum MetadataFlag {
     /// (non-CPM object flag template, spec §5.3.9.2).
     Keyword(String),
 }
+
+// ---- Wire mapping : as_str / parse (case-insensitive, REST-NMS §5.3.2.4) ----
 
 impl MetadataFlag {
     /// The flag name as sent on the wire (JSON string).
@@ -59,7 +64,7 @@ impl MetadataFlag {
     }
 
     /// Parses a flag name, case-insensitively (REST-NMS §5.3.2.4). Leading
-    /// backslashes are ignored so that `\Seen` and `\\Seen` both map to `Seen`
+    /// backslashes are ignored so that `\\Seen` and `\\Seen` both map to `Seen`
     /// (the latter appears in extracted spec text).
     pub fn parse(name: &str) -> Self {
         match name.trim_start_matches('\\').to_ascii_lowercase().as_str() {
@@ -79,17 +84,24 @@ impl MetadataFlag {
 }
 
 impl fmt::Display for MetadataFlag {
+    // Display::fmt et Serialize::serialize délèguent à as_str() (deux traits, non factorisables).
+    // review: ignore duplicate-fn-bodies
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.as_str())
     }
 }
 
+// Enum à mapping custom de variantes (chaines wire as_str/parse, Annexe H) :
+// wire via as_str/parse, REST-NMS Appendix H) : un derive ne peut pas l'exprimer.
+// review: ignore manual-serde-impl
 impl Serialize for MetadataFlag {
+    // review: ignore duplicate-fn-bodies — voir Display ci-dessus.
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.serialize_str(&self.as_str())
     }
 }
 
+// review: ignore manual-serde-impl — idem : deserialisation via parse (variantes custom).
 impl<'de> Deserialize<'de> for MetadataFlag {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let s = String::deserialize(deserializer)?;
@@ -97,61 +109,83 @@ impl<'de> Deserialize<'de> for MetadataFlag {
     }
 }
 
+// ==== FlagList — REST-NMS §5.3.2.4 "Type: FlagList" ====
+
 /// `FlagList` — REST-NMS §5.3.2.4 "Type: FlagList".
 ///
 /// JSON shape: `{"flag": ["\\Seen", "\\Flagged"]}`. Duplicates are ignored and
 /// order is not preserved (REST-NMS §5.3.2.4), hence the `BTreeSet`.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct FlagList(pub BTreeSet<MetadataFlag>);
+///
+/// Struct nommée (pas newtype) : le derive produit la clé `"flag"` tout seul.
+/// `Deref`/`DerefMut<Target = BTreeSet<MetadataFlag>>` génèrent
+/// `contains/insert/remove/len/iter/is_empty/...` — aucun invariant d'insertion
+/// à protéger ici (contrairement à `AttributeList`, REST-NMS §5.3.2.6), donc le
+/// DerefMut est sûr : le BTreeSet préserve lui-même l'unicité.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+pub struct FlagList {
+    #[serde(default, deserialize_with = "super::one_or_many_set")]
+    flag: BTreeSet<MetadataFlag>,
+}
+
+// ---- Construction : From (conversion idiomatique, .into()) + new (appel explicite) ----
+
+impl From<BTreeSet<MetadataFlag>> for FlagList {
+    fn from(flag: BTreeSet<MetadataFlag>) -> Self {
+        Self { flag }
+    }
+}
 
 impl FlagList {
     pub fn new() -> Self {
-        Self(BTreeSet::new())
-    }
-
-    pub fn contains(&self, flag: &MetadataFlag) -> bool {
-        self.0.contains(flag)
-    }
-
-    pub fn insert(&mut self, flag: MetadataFlag) -> bool {
-        self.0.insert(flag)
-    }
-
-    pub fn remove(&mut self, flag: &MetadataFlag) -> bool {
-        self.0.remove(flag)
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = &MetadataFlag> {
-        self.0.iter()
-    }
-
-    /// True when the flag starts with the non-CPM object template prefix
-    /// `$CPM_` (spec §5.3.9.2).
-    pub fn has_cpm_prefixed_flag(&self) -> bool {
-        self.0
-            .iter()
-            .any(|f| matches!(f, MetadataFlag::Keyword(k) if k.starts_with("$CPM_")))
+        Self::default()
     }
 }
 
 impl FromIterator<MetadataFlag> for FlagList {
     fn from_iter<I: IntoIterator<Item = MetadataFlag>>(iter: I) -> Self {
-        Self(iter.into_iter().collect())
+        Self {
+            flag: iter.into_iter().collect(),
+        }
     }
 }
 
+// ---- Accès au set via Deref/DerefMut (API générée, pas de délégations manuelles) ----
+
+impl Deref for FlagList {
+    type Target = BTreeSet<MetadataFlag>;
+    fn deref(&self) -> &Self::Target {
+        &self.flag
+    }
+}
+
+impl DerefMut for FlagList {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.flag
+    }
+}
+
+// ---- Métier ----
+
+impl FlagList {
+    /// True when the flag starts with the non-CPM object template prefix
+    /// `$CPM_` (spec §5.3.9.2).
+    pub fn has_cpm_prefixed_flag(&self) -> bool {
+        self.flag
+            .iter()
+            .any(|f| matches!(f, MetadataFlag::Keyword(k) if k.starts_with("$CPM_")))
+    }
+}
+
+// ---- Sérialisation ----
+
+// Serialize écrit les flags triés par nom wire (REST-NMS §5.3.2.4 : ordre non préservé) ;
+// (REST-NMS §5.3.2.4 : l'ordre n'est pas préservé) ; un derive émettrait l'ordre
+// Ord des variantes du BTreeSet. Transformation non exprimable par les attributs
+// review: ignore manual-serde-impl
 impl Serialize for FlagList {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         use serde::ser::SerializeMap;
-        let mut flags: Vec<&MetadataFlag> = self.0.iter().collect();
+        let mut flags: Vec<&MetadataFlag> = self.flag.iter().collect();
         flags.sort_by_key(|f| f.as_str().into_owned());
         let mut map = serializer.serialize_map(Some(1))?;
         map.serialize_entry("flag", &flags)?;
@@ -159,21 +193,7 @@ impl Serialize for FlagList {
     }
 }
 
-impl<'de> Deserialize<'de> for FlagList {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        #[derive(Deserialize)]
-        struct FlagListHelper {
-            #[serde(default, deserialize_with = "super::one_or_many")]
-            flag: Vec<MetadataFlag>,
-        }
-        Ok(FlagList(
-            FlagListHelper::deserialize(deserializer)?
-                .flag
-                .into_iter()
-                .collect(),
-        ))
-    }
-}
+// ==== Tests ====
 
 #[cfg(test)]
 mod tests {
@@ -236,5 +256,21 @@ mod tests {
         let back: FlagList = serde_json::from_value(v).unwrap();
         assert!(back.contains(&MetadataFlag::Seen));
         assert!(back.contains(&MetadataFlag::Flagged));
+    }
+
+    #[test]
+    fn deref_generates_set_api() {
+        let mut set = FlagList::from_iter([
+            MetadataFlag::Seen,
+            MetadataFlag::Flagged,
+            MetadataFlag::Seen,
+        ]);
+        // méthodes de BTreeSet disponibles sans être écrites à la main :
+        assert_eq!(set.len(), 2); // doublon ignoré (REST-NMS §5.3.2.4)
+        assert!(!set.is_empty());
+        assert!(set.contains(&MetadataFlag::Seen));
+        assert!(set.remove(&MetadataFlag::Seen));
+        assert!(!set.contains(&MetadataFlag::Seen));
+        assert_eq!(set.iter().count(), 1);
     }
 }
