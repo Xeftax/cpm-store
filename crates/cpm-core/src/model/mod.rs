@@ -11,6 +11,8 @@
 //! [REST_NetAPI_Common] (camelCase element names), as used by the JSON examples
 //! of the spec annexes.
 
+// ==== Modules ====
+
 pub mod attribute;
 pub mod events;
 pub mod flags;
@@ -22,6 +24,8 @@ pub mod object;
 pub mod search;
 pub mod subscription;
 pub mod sync;
+
+// ==== Public re-exports ====
 
 pub use attribute::{Attribute, AttributeList};
 pub use events::{
@@ -51,10 +55,48 @@ pub use subscription::{
 };
 pub use sync::SyncState;
 
+// ==== serde helpers (XML-to-JSON conversions of [REST_NetAPI_Common]) ====
+
+use std::collections::BTreeSet;
 use std::marker::PhantomData;
 
 use serde::Deserialize;
 use serde::de::{MapAccess, SeqAccess, Visitor};
+
+/// Visitor behind [`one_or_many`]: accepts a single element or an array.
+struct OneOrMany<T>(PhantomData<T>);
+
+impl<'de, T: Deserialize<'de>> Visitor<'de> for OneOrMany<T> {
+    type Value = Vec<T>;
+
+    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("a single element or an array of elements")
+    }
+
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Vec<T>, A::Error> {
+        let mut out = Vec::with_capacity(seq.size_hint().unwrap_or(0));
+        while let Some(x) = seq.next_element()? {
+            out.push(x);
+        }
+        Ok(out)
+    }
+
+    // review: ignore duplicate-fn-bodies — méthodes du trait Visitor requises par serde ; visit_map et visit_str ont la même forme normalisée (deserializers différents), non factorisables.
+    fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Vec<T>, A::Error> {
+        let v = T::deserialize(serde::de::value::MapAccessDeserializer::new(map))?;
+        Ok(vec![v])
+    }
+
+    // review: ignore duplicate-fn-bodies — voir visit_map.
+    fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<Vec<T>, E> {
+        let x = T::deserialize(serde::de::value::StrDeserializer::new(v))?;
+        Ok(vec![x])
+    }
+
+    fn visit_string<E: serde::de::Error>(self, v: String) -> Result<Vec<T>, E> {
+        self.visit_str(&v)
+    }
+}
 
 /// Deserializes a JSON value that may be a single element or an array into a
 /// `Vec` (XML-to-JSON rules of [REST_NetAPI_Common] produce a bare value for a
@@ -64,39 +106,17 @@ where
     T: Deserialize<'de>,
     D: serde::Deserializer<'de>,
 {
-    struct OneOrMany<T>(PhantomData<T>);
-
-    impl<'de, T: Deserialize<'de>> Visitor<'de> for OneOrMany<T> {
-        type Value = Vec<T>;
-
-        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-            f.write_str("a single element or an array of elements")
-        }
-
-        fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Vec<T>, A::Error> {
-            let mut out = Vec::with_capacity(seq.size_hint().unwrap_or(0));
-            while let Some(x) = seq.next_element()? {
-                out.push(x);
-            }
-            Ok(out)
-        }
-
-        fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Vec<T>, A::Error> {
-            let v = T::deserialize(serde::de::value::MapAccessDeserializer::new(map))?;
-            Ok(vec![v])
-        }
-
-        fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<Vec<T>, E> {
-            let x = T::deserialize(serde::de::value::StrDeserializer::new(v))?;
-            Ok(vec![x])
-        }
-
-        fn visit_string<E: serde::de::Error>(self, v: String) -> Result<Vec<T>, E> {
-            self.visit_str(&v)
-        }
-    }
-
     deserializer.deserialize_any(OneOrMany(PhantomData))
+}
+
+/// Same as [`one_or_many`] but collects into a `BTreeSet` (deduplicated and
+/// ordered) — used by `FlagList` (REST-NMS §5.3.2.4: duplicates are ignored).
+pub(crate) fn one_or_many_set<'de, T, D>(deserializer: D) -> Result<BTreeSet<T>, D::Error>
+where
+    T: Deserialize<'de> + Ord,
+    D: serde::Deserializer<'de>,
+{
+    Ok(one_or_many(deserializer)?.into_iter().collect())
 }
 
 /// Same as [`one_or_many`] but for an optional repeated element.

@@ -12,6 +12,7 @@ use cpm_core::ports::{
     FolderPage, MessageStorage, ObjectPage, StoreBackend, StoredMessage, SyncStateStore,
 };
 
+// ==== MockHost state ====
 #[derive(Default)]
 struct MockHost {
     messages: Mutex<HashMap<String, StoredMessage>>,
@@ -20,6 +21,7 @@ struct MockHost {
 }
 
 #[async_trait]
+// ==== MessageStorage impl (in-memory) ====
 impl MessageStorage for MockHost {
     async fn store_message(
         &self,
@@ -56,6 +58,7 @@ impl MessageStorage for MockHost {
             .collect())
     }
 
+    // review: ignore duplicate-fn-bodies — lock+remove+Ok(()), même forme normalisée que remove_mapping (champs différents).
     async fn delete_message(&self, local_id: &LocalId) -> Result<(), CpmError> {
         self.messages.lock().unwrap().remove(local_id.as_str());
         Ok(())
@@ -88,6 +91,7 @@ impl MessageStorage for MockHost {
             .map(|(k, _)| ObjectId::new(k.clone())))
     }
 
+    // review: ignore duplicate-fn-bodies — voir delete_message.
     async fn remove_mapping(&self, object_id: &ObjectId) -> Result<(), CpmError> {
         self.mapping.lock().unwrap().remove(object_id.as_str());
         Ok(())
@@ -95,6 +99,7 @@ impl MessageStorage for MockHost {
 }
 
 #[async_trait]
+// ==== SyncStateStore impl ====
 impl SyncStateStore for MockHost {
     async fn load(&self) -> Result<Option<SyncState>, CpmError> {
         Ok(self.sync.lock().unwrap().clone())
@@ -112,9 +117,17 @@ impl SyncStateStore for MockHost {
 #[allow(dead_code)]
 fn assert_object_safe(_: &dyn StoreBackend, _: &dyn MessageStorage, _: &dyn SyncStateStore) {}
 
+// ---- Shared stub error ----
+/// Error returned by every unimplemented `NoopBackend` method (factorise the 13 identical stub bodies).
+fn noop<T>() -> Result<T, CpmError> {
+    Err(CpmError::NotFound("noop".into()))
+}
+
+// ==== NoopBackend: object-safety proof + stubs ====
 struct NoopBackend;
 
 #[async_trait]
+// ==== StoreBackend stubs ====
 impl StoreBackend for NoopBackend {
     async fn search_folders(&self, _c: &SelectionCriteria) -> Result<FolderPage, CpmError> {
         Ok(FolderPage::default())
@@ -125,7 +138,7 @@ impl StoreBackend for NoopBackend {
         _n: &str,
         _a: AttributeList,
     ) -> Result<Folder, CpmError> {
-        Err(CpmError::NotFound("noop".into()))
+        noop()
     }
     async fn list_folders(
         &self,
@@ -135,7 +148,7 @@ impl StoreBackend for NoopBackend {
         Ok(FolderPage::default())
     }
     async fn get_folder(&self, _f: &Reference) -> Result<Folder, CpmError> {
-        Err(CpmError::NotFound("noop".into()))
+        noop()
     }
     async fn update_folder(
         &self,
@@ -143,7 +156,7 @@ impl StoreBackend for NoopBackend {
         _n: Option<&str>,
         _a: Option<AttributeList>,
     ) -> Result<Folder, CpmError> {
-        Err(CpmError::NotFound("noop".into()))
+        noop()
     }
     async fn move_to_folder(&self, _t: &Reference, _s: &ReferenceList) -> Result<(), CpmError> {
         Ok(())
@@ -155,10 +168,10 @@ impl StoreBackend for NoopBackend {
         Ok(())
     }
     async fn path_to_ref(&self, _p: &str) -> Result<Reference, CpmError> {
-        Err(CpmError::NotFound("noop".into()))
+        noop()
     }
     async fn create_object(&self, _d: &ObjectDraft) -> Result<NmsObject, CpmError> {
-        Err(CpmError::NotFound("noop".into()))
+        noop()
     }
     async fn bulk_create_objects(&self, _d: &[ObjectDraft]) -> Result<BulkResponseList, CpmError> {
         Ok(BulkResponseList::default())
@@ -179,14 +192,14 @@ impl StoreBackend for NoopBackend {
         Ok(BulkResponseList::default())
     }
     async fn get_object(&self, _o: &Reference) -> Result<NmsObject, CpmError> {
-        Err(CpmError::NotFound("noop".into()))
+        noop()
     }
     async fn update_object(
         &self,
         _o: &Reference,
         _u: &ObjectUpdate,
     ) -> Result<NmsObject, CpmError> {
-        Err(CpmError::NotFound("noop".into()))
+        noop()
     }
     async fn get_payload(&self, _o: &Reference) -> Result<Vec<u8>, CpmError> {
         Ok(Vec::new())
@@ -195,7 +208,7 @@ impl StoreBackend for NoopBackend {
         Ok(Vec::new())
     }
     async fn path_to_object_ref(&self, _p: &str) -> Result<Reference, CpmError> {
-        Err(CpmError::NotFound("noop".into()))
+        noop()
     }
     async fn list_flags(&self, _o: &Reference) -> Result<FlagList, CpmError> {
         Ok(FlagList::new())
@@ -213,20 +226,20 @@ impl StoreBackend for NoopBackend {
         &self,
         _r: &SubscriptionRequest,
     ) -> Result<NmsSubscription, CpmError> {
-        Err(CpmError::NotFound("noop".into()))
+        noop()
     }
     async fn list_subscriptions(&self) -> Result<NmsSubscriptionList, CpmError> {
         Ok(NmsSubscriptionList::default())
     }
     async fn get_subscription(&self, _s: &Reference) -> Result<NmsSubscription, CpmError> {
-        Err(CpmError::NotFound("noop".into()))
+        noop()
     }
     async fn update_subscription(
         &self,
         _s: &Reference,
         _u: &NmsSubscriptionUpdate,
     ) -> Result<NmsSubscription, CpmError> {
-        Err(CpmError::NotFound("noop".into()))
+        noop()
     }
     async fn delete_subscription(&self, _s: &Reference) -> Result<(), CpmError> {
         Ok(())
@@ -240,6 +253,7 @@ impl StoreBackend for NoopBackend {
     }
 }
 
+// ==== Test: ports through dyn ====
 #[tokio::test]
 async fn host_ports_work_through_dyn() {
     let host: &dyn MessageStorage = &MockHost::default();
