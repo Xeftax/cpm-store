@@ -5,7 +5,7 @@
 //! unique in the context of the NMS box (spec §5.3.1.1) and, combined with the
 //! box ID, permanently identifies one stored object (spec §5.4).
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 
 use super::attribute::AttributeList;
@@ -13,6 +13,7 @@ use super::flags::FlagList;
 use super::imdn::ImdnList;
 use super::mapping::ObjectId;
 
+// ==== Parent reference (REST-NMS §5.3.2.1) ====
 /// How the parent folder of an object/folder is referenced in a request:
 /// XSD "choice" of `parentFolder` (resource URL) or `parentFolderPath`
 /// (hierarchical path) — REST-NMS §5.3.2.1.
@@ -23,6 +24,7 @@ pub enum ParentRef {
     FolderPath(String),
 }
 
+// ==== Payload parts (REST-NMS §5.3.2.7) ====
 /// Information about an individual payload part — REST-NMS §5.3.2.7
 /// "Type: PayloadPartInfo".
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -54,9 +56,10 @@ pub struct PayloadPartInfo {
     /// Beyond this date the `href` of externally referenced content is no
     /// longer valid.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub href_expiry: Option<DateTime<Utc>>,
+    pub href_expiry: Option<Timestamp>,
 }
 
+// ==== NmsObject (REST-NMS §5.3.2.1) ====
 /// `NmsObject` — REST-NMS §5.3.2.1 "Type: Object" (JSON root element `object`).
 ///
 /// The CPM message object adds no field of its own over the NMS object: its
@@ -123,6 +126,7 @@ impl NmsObject {
     }
 }
 
+// ==== Envelopes and lists (REST-NMS §5.3.2.2) ====
 /// Root element `object` wrapping an [`NmsObject`] (REST-NMS §5.3.2.1).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ObjectEnvelope {
@@ -150,6 +154,7 @@ pub struct ObjectListEnvelope {
     pub object_list: ObjectList,
 }
 
+// ==== Client-side draft / update (spec §7.3.3) ====
 /// Client-side draft of a `POST /objects` request: the `root-fields` part plus
 /// the attachment parts (spec §7.3.3.1, annex C).
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -182,6 +187,7 @@ pub struct ObjectUpdate {
     pub correlation_tag: Option<String>,
 }
 
+// ==== Tests ====
 #[cfg(test)]
 mod tests {
     use super::*;
