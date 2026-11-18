@@ -3,7 +3,7 @@
 //! message object with no payload whose content is realized by NMS attributes
 //! (spec §5.3.10, RFC 5438).
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 
 /// IMDN information — REST-NMS §5.3.2.36.
@@ -16,7 +16,7 @@ pub struct ImdnInfo {
     #[serde(rename = "type")]
     pub disposition_type: String,
     /// xsd:dateTimeStamp — when the IMDN was sent.
-    pub date: DateTime<Utc>,
+    pub date: Timestamp,
 }
 
 /// Individual IMDN — REST-NMS "Type: Imdn".

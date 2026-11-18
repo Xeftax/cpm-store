@@ -11,7 +11,7 @@ publish.workspace = true
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
-chrono = { workspace = true }
+jiff = { workspace = true }
 uuid = { workspace = true }
 # Object-safe async traits for the ports (dyn-compat needed for the future
 # C vtable of the host ports in cpm-ffi, ADR D5).
