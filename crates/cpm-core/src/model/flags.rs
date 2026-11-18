@@ -178,9 +178,9 @@ impl FlagList {
 
 // ---- Sérialisation ----
 
-// Serialize écrit les flags triés par nom wire (REST-NMS §5.3.2.4 : ordre non préservé) ;
-// (REST-NMS §5.3.2.4 : l'ordre n'est pas préservé) ; un derive émettrait l'ordre
-// Ord des variantes du BTreeSet. Transformation non exprimable par les attributs
+// Serialize écrit les flags triés par nom wire (REST-NMS §5.3.2.4 : l ordre n est
+// pas préservé) ; un derive émettrait l ordre Ord des variantes du BTreeSet,
+// transformation non exprimable par les attributs serde.
 // review: ignore manual-serde-impl
 impl Serialize for FlagList {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
