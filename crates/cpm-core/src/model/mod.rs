@@ -3,13 +3,13 @@
 //! Normative references:
 //! - [CPM-REST] `OMA-TS-CPM_Message_Storage_Using_RESTFul_API-V1_0-20200907-C`
 //!   (resources §5.3, identification §5.4, subscriptions/sync §5.5, metadata §5.6,
-//!   client procedures §6, server resources §7.3, examples annexes C–H);
+//!   client procedures §6, server resources §7.3, examples Appendices C–H);
 //! - [REST-NMS] `OMA-TS-REST_NetAPI_NMS-V1_0-20190528-C` (data types §5.3.2,
 //!   enumerations §5.3.3, flag names Appendix H, RCS object attributes Appendix I).
 //!
 //! JSON field names follow the XML-to-JSON serialization rules of
 //! [REST_NetAPI_Common] (camelCase element names), as used by the JSON examples
-//! of the spec annexes.
+//! of the spec appendices.
 
 // ==== Modules ====
 
@@ -81,13 +81,13 @@ impl<'de, T: Deserialize<'de>> Visitor<'de> for OneOrMany<T> {
         Ok(out)
     }
 
-    // review: ignore duplicate-fn-bodies — méthodes du trait Visitor requises par serde ; visit_map et visit_str ont la même forme normalisée (deserializers différents), non factorisables.
+    // review: ignore duplicate-fn-bodies — Visitor trait methods required by serde; visit_map and visit_str have the same normalized shape (different deserializers), not factorizable.
     fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Vec<T>, A::Error> {
         let v = T::deserialize(serde::de::value::MapAccessDeserializer::new(map))?;
         Ok(vec![v])
     }
 
-    // review: ignore duplicate-fn-bodies — voir visit_map.
+    // review: ignore duplicate-fn-bodies — see visit_map.
     fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<Vec<T>, E> {
         let x = T::deserialize(serde::de::value::StrDeserializer::new(v))?;
         Ok(vec![x])
@@ -196,7 +196,7 @@ where
     match serde_json::Value::deserialize(deserializer)? {
         serde_json::Value::Number(n) => n
             .as_u64()
-            .and_then(|v| u16::try_from(v).ok())
+            .and_then(|v: u64| u16::try_from(v).ok())
             .ok_or_else(|| D::Error::custom("invalid unsignedShort")),
         serde_json::Value::String(s) => s
             .parse::<u16>()

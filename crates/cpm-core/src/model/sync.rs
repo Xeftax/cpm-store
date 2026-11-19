@@ -40,17 +40,19 @@ impl SyncState {
     }
 
     /// Serializes the blob to JSON (the single host key holds this string).
-    // review: ignore duplicate-fn-bodies — to_json et from_json enveloppent chacune un appel serde_json distinct (to_string vs from_str) ; la normalisation AST (idents/literals -> I/S) les rend identiques. Duplication intentionnelle documentee (known-patterns when_not_applicable).
+    // review: ignore duplicate-fn-bodies — to_json and from_json each wrap a distinct serde_json call (to_string vs from_str); AST normalization (idents/literals -> I/S) makes them identical. Intentional duplication, documented (known-patterns when_not_applicable).
     pub fn to_json(&self) -> Result<String, CpmError> {
-        serde_json::to_string(self)
-            .map_err(|e| CpmError::Parse(format!("SyncState serialization failed: {e}")))
+        serde_json::to_string(self).map_err(|e: serde_json::Error| {
+            CpmError::Parse(format!("SyncState serialization failed: {e}"))
+        })
     }
 
     /// Parses a blob previously stored by the host.
-    // review: ignore duplicate-fn-bodies — voir to_json ci-dessus.
+    // review: ignore duplicate-fn-bodies — see to_json above.
     pub fn from_json(json: &str) -> Result<Self, CpmError> {
-        serde_json::from_str(json)
-            .map_err(|e| CpmError::Parse(format!("SyncState deserialization failed: {e}")))
+        serde_json::from_str(json).map_err(|e: serde_json::Error| {
+            CpmError::Parse(format!("SyncState deserialization failed: {e}"))
+        })
     }
 
     /// Records progress reported by the server (server-authoritative, ADR D8):
@@ -61,7 +63,7 @@ impl SyncState {
             self.restart_token = restart_token;
         }
         if let Some(seq) = last_mod_seq {
-            self.last_mod_seq = Some(self.last_mod_seq.map_or(seq, |cur| cur.max(seq)));
+            self.last_mod_seq = Some(self.last_mod_seq.map_or(seq, |cur: u64| cur.max(seq)));
         }
     }
 

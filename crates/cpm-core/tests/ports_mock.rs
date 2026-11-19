@@ -54,11 +54,11 @@ impl MessageStorage for MockHost {
             .lock()
             .unwrap()
             .keys()
-            .map(|k| LocalId::new(k.clone()))
+            .map(|k: &String| LocalId::new(k.clone()))
             .collect())
     }
 
-    // review: ignore duplicate-fn-bodies — lock+remove+Ok(()), même forme normalisée que remove_mapping (champs différents).
+    // review: ignore duplicate-fn-bodies — lock+remove+Ok(()), same normalized shape as remove_mapping (different fields).
     async fn delete_message(&self, local_id: &LocalId) -> Result<(), CpmError> {
         self.messages.lock().unwrap().remove(local_id.as_str());
         Ok(())
@@ -78,7 +78,7 @@ impl MessageStorage for MockHost {
             .lock()
             .unwrap()
             .get(object_id.as_str())
-            .map(|s| LocalId::new(s.clone())))
+            .map(|s: &String| LocalId::new(s.clone())))
     }
 
     async fn object_id_for(&self, local_id: &LocalId) -> Result<Option<ObjectId>, CpmError> {
@@ -87,11 +87,11 @@ impl MessageStorage for MockHost {
             .lock()
             .unwrap()
             .iter()
-            .find(|(_, v)| v.as_str() == local_id.as_str())
-            .map(|(k, _)| ObjectId::new(k.clone())))
+            .find(|(_, v): &(&String, &String)| v.as_str() == local_id.as_str())
+            .map(|(k, _): (&String, &String)| ObjectId::new(k.clone())))
     }
 
-    // review: ignore duplicate-fn-bodies — voir delete_message.
+    // review: ignore duplicate-fn-bodies — see delete_message.
     async fn remove_mapping(&self, object_id: &ObjectId) -> Result<(), CpmError> {
         self.mapping.lock().unwrap().remove(object_id.as_str());
         Ok(())

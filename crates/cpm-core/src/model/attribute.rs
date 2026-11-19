@@ -46,10 +46,10 @@ impl Attribute {
 /// JSON shape: `{"attribute": [{"name": ..., "value": [...]}, ...]}`.
 /// Attribute names within the list MUST be unique (REST-NMS §5.3.2.6).
 ///
-/// Struct nommée (pas newtype) : le derive serde produit la clé `"attribute"`
-/// tout seul, aucun impl manuel. `Deref<Target = Vec<Attribute>>` génère
-/// `len()/iter()/is_empty()/...` — volontairement PAS de `DerefMut`, pour ne
-/// pas exposer `push` qui pourrait violer l'unicité des noms (§5.3.2.6).
+/// Named struct (not a newtype): the serde derive alone produces the `"attribute"`
+/// key, no manual impl. `Deref<Target = Vec<Attribute>>` generates
+/// `len()/iter()/is_empty()/...` — deliberately NO `DerefMut`, so `push` cannot
+/// be exposed and violate name uniqueness (§5.3.2.6).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AttributeList {
     #[serde(default, deserialize_with = "super::one_or_many")]
@@ -57,7 +57,7 @@ pub struct AttributeList {
 }
 
 // ---------------------------------------------------------------------------
-// Construction : From (conversion idiomatique, .into()) + new (appel explicite)
+// Construction: From (idiomatic conversion, .into()) + new (explicit call)
 // ---------------------------------------------------------------------------
 
 impl From<Vec<Attribute>> for AttributeList {
@@ -72,7 +72,7 @@ impl AttributeList {
     }
 }
 
-// Deref en lecture seule : génère len()/iter()/is_empty()/get()... de Vec.
+// Read-only Deref: generates len()/iter()/is_empty()/get()... from Vec.
 impl Deref for AttributeList {
     type Target = Vec<Attribute>;
     fn deref(&self) -> &Self::Target {
@@ -81,30 +81,31 @@ impl Deref for AttributeList {
 }
 
 // ---------------------------------------------------------------------------
-// 1. Lookup générique — case-insensitive (REST-NMS §5.3.2.5)
+// 1. Generic lookup — case-insensitive (REST-NMS §5.3.2.5)
 // ---------------------------------------------------------------------------
 
 impl AttributeList {
     /// Case-insensitive attribute lookup ("Message-ID" == "message-id", §5.3.2.5).
     pub fn get(&self, name: &str) -> Option<&Attribute> {
-        self.iter().find(|a| a.name.eq_ignore_ascii_case(name))
+        self.iter()
+            .find(|a: &&Attribute| a.name.eq_ignore_ascii_case(name))
     }
 
     /// Values of a case-insensitive lookup.
     pub fn values(&self, name: &str) -> Option<&[String]> {
-        self.get(name).map(|a| a.value.as_slice())
+        self.get(name).map(|a: &Attribute| a.value.as_slice())
     }
 
     /// First value of an attribute, if present.
     pub fn first_value(&self, name: &str) -> Option<&str> {
         self.values(name)
-            .and_then(|v| v.first())
+            .and_then(|v: &[String]| v.first())
             .map(String::as_str)
     }
 }
 
 // ---------------------------------------------------------------------------
-// 2. Accesseurs typés (Annexe I) — un seul pattern, généré par macro
+// 2. Typed accessors (Appendix I) — a single pattern, macro-generated
 // ---------------------------------------------------------------------------
 
 macro_rules! typed_attribute {
@@ -184,7 +185,7 @@ mod tests {
             Attribute::new("a", vec!["1".to_owned()]),
             Attribute::new("b", vec!["2".to_owned()]),
         ]);
-        // méthodes de Vec disponibles sans être écrites à la main :
+        // Vec methods available without writing them by hand:
         assert_eq!(list.len(), 2);
         assert!(!list.is_empty());
         assert_eq!(list.iter().count(), 2);
