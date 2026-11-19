@@ -66,7 +66,7 @@ jobs:
       - run: scripts/ci/security-rust.sh
 
   commit-hygiene:
-    name: commit-hygiene (aucun contournement de hooks dans les commits)
+    name: commit-hygiene (no hook bypass in commits)
     runs-on: ubuntu-latest
     steps:
       # historique complet : le scan porte sur les messages de commit du range
@@ -75,6 +75,44 @@ jobs:
           fetch-depth: 0
       - run: >-
           scripts/ci/check-commit-hygiene.sh
+          "${{ github.event.pull_request.base.sha || 'origin/main' }}"
+          "${{ github.event.pull_request.head.sha || 'HEAD' }}"
+
+  language:
+    name: language (English-only added lines)
+    runs-on: ubuntu-latest
+    steps:
+      # full history: the scan covers the added lines of the whole PR range
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: >-
+          scripts/ci/check-language.py --check
+          "${{ github.event.pull_request.base.sha || 'origin/main' }}"
+          "${{ github.event.pull_request.head.sha || 'HEAD' }}"
+
+  review-owners:
+    name: review-owners (owners triggered by the diff, informational)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: >-
+          scripts/ci/review-owners.py --check
+          "${{ github.event.pull_request.base.sha || 'origin/main' }}"
+          "${{ github.event.pull_request.head.sha || 'HEAD' }}"
+
+  review-required:
+    name: review-required (>=1 commit with a Reviewed-By trailer)
+    runs-on: ubuntu-latest
+    steps:
+      # full history: the scan covers the commit messages of the whole PR range
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: >-
+          scripts/ci/check-review-commit.sh
           "${{ github.event.pull_request.base.sha || 'origin/main' }}"
           "${{ github.event.pull_request.head.sha || 'HEAD' }}"
 

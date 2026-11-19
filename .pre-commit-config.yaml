@@ -97,6 +97,15 @@ repos:
     stages: [ pre-commit ]
     types: [ markdown ]
 
+  # Repo-local check (English-only rule, AGENTS.md "Language and style"): scans the
+  # staged ADDED lines of every file type for French/accented characters.
+  - id: language
+    name: language (English-only added lines)
+    entry: "bash -c '[[ -x scripts/ci/check-language.py ]] || exit 0; scripts/ci/check-language.py'"
+    language: system
+    stages: [ pre-commit ]
+    pass_filenames: false
+
 # Global settings
 default_stages: [ pre-commit ]
 fail_fast: false

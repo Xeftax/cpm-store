@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# commit-hygiene : bloque les contournements de hooks pre-commit dans les commits d'un range.
+# commit-hygiene : blocks pre-commit hook bypasses in the commits of a range.
 #
-# Règle (AGENTS.md section Git + .vibe/skills/git-workflow-owner) : jamais de
-# `git commit --no-verify` sans autorisation explicite par chat. git n'enregistre pas
-# si les hooks ont tourné, donc la convention rend tout bypass visible : un commit qui
-# contourne les hooks DOIT porter le trailer `Hooks-Bypassed: <hook> — <raison>`.
-# Ce script échoue si un message de commit du range contient `--no-verify` ou
-# `Hooks-Bypassed` : un bypass autorisé par chat se traduit par un reword humain du
-# message (qui retire le marqueur) après validation, jamais par un merge en l'état.
+# Rule (AGENTS.md section Git + .vibe/skills/git-workflow-owner): never
+# `git commit --no-verify` without explicit chat authorization. git does not record
+# whether hooks ran, so the convention makes any bypass visible: a commit that
+# bypasses hooks MUST carry the trailer `Hooks-Bypassed: <hook> — <reason>`.
+# This script fails if a commit message of the range contains `--no-verify` or
+# `Hooks-Bypassed`: a chat-authorized bypass is translated into a human reword of the
+# message (which removes the marker) after validation, never merged as-is.
 #
-# Usage: check-commit-hygiene.sh [base] [head]    (défaut: origin/main HEAD)
+# Usage: check-commit-hygiene.sh [base] [head]    (default: origin/main HEAD)
 set -euo pipefail
 
 base="${1:-origin/main}"
@@ -17,14 +17,14 @@ head="${2:-HEAD}"
 range="$base...$head"
 
 if ! git merge-base --is-ancestor "$base" "$head" 2>/dev/null; then
-  echo "commit-hygiene: $base n'est pas un ancêtre de $head -> range vide, OK"
+  echo "commit-hygiene: $base is not an ancestor of $head -> empty range, OK"
   exit 0
 fi
 
 bad=0
 for c in $(git rev-list "$range"); do
   if git log -1 --format='%B' "$c" | grep -qE -- '--no-verify|Hooks-Bypassed'; then
-    echo "commit-hygiene: $c déclare un contournement de hooks :" >&2
+    echo "commit-hygiene: $c declares a hook bypass:" >&2
     git log -1 --format='%B' "$c" >&2
     bad=1
   fi
@@ -32,4 +32,4 @@ done
 if [[ "$bad" -ne 0 ]]; then
   exit 1
 fi
-echo "commit-hygiene: OK ($(git rev-list --count "$range") commits scannés dans $range, aucun contournement de hooks)"
+echo "commit-hygiene: OK ($(git rev-list --count "$range") commits scanned in $range, no hook bypass)"

@@ -85,12 +85,17 @@ def https_get(url: str) -> bytes:
             parsed.hostname, parsed.port or 443, context=ssl.create_default_context(), timeout=60
         )
         try:
-                        # openmobilealliance.org renvoie 403 a un UA non navigateur ; on envoie
+            # openmobilealliance.org renvoie 403 a un UA non navigateur ; on envoie
             # un UA navigateur pour pouvoir telecharger les PDF officiels en local.
             conn.request(
                 "GET",
                 path,
-                headers={"User-Agent": 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36'},
+                headers={
+                    "User-Agent": (
+                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+                        " (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+                    )
+                },
             )
             resp = conn.getresponse()
             location = resp.getheader("Location")
