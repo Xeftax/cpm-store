@@ -1,47 +1,50 @@
 ---
 name: git-workflow-owner
-description: "OWNER workflow git de cpm-store (commits, branches, PRs, hooks pre-commit). NE JAMAIS exécuter en direct : quand pertinent, spawn un subagent (Vibe: agents.spawn, instructions = ce fichier). Trigger when writing a commit, pushing, rebasing, opening/retargeting a PR, or touching .pre-commit-config.yaml, scripts/ci/, .github/workflows/. MUST BE USED at every PR review-after (run the commit-hygiene check) and before any discussion of bypassing hooks."
+description: "OWNER of the git workflow of cpm-store (commits, branches, PRs, pre-commit hooks). NEVER run inline: when relevant, spawn a subagent (Vibe: agents.spawn, instructions = this file). Trigger when writing a commit, pushing, rebasing, opening/retargeting a PR, or touching .pre-commit-config.yaml, scripts/ci/, .github/workflows/. MUST BE USED at every PR review-after (run the commit-hygiene and review-required checks) and before any discussion of bypassing hooks."
 user-invocable: false
 ---
 
 # git-workflow-owner
 
-Owner du domaine « workflow git » : commits, branches, PRs, hooks pre-commit. Cas
-d'école : session review PR #8 du 2026-11-17 — un commit a été fait en contournant les
-hooks (cargo-deny échouait sur un advisory pré-existant) ; il a été refait proprement
-après coup en fixant le hook à la source (migration chrono -> jiff, commit c8f0200).
+Owner of the "git workflow" domain: commits, branches, PRs, pre-commit hooks. Textbook
+case: PR #8 review session on 2026-11-17 — a commit was made bypassing the hooks
+(cargo-deny was failing on a pre-existing advisory); it was redone properly afterwards
+by fixing the hook at the source (chrono -> jiff migration, commit c8f0200).
 
-## Rôle dual
+## Dual role
 
-- **Advise BEFORE** : « je commit / push / rebase » → quelle branche, quel message, quels hooks vont tourner.
-- **Review AFTER** : « review cette PR » → verdict contre les invariants, incluant le check commit-hygiene.
+- **Advise BEFORE**: "I commit / push / rebase" → which branch, which message, which hooks will run.
+- **Review AFTER**: "review this PR" → verdict against the invariants, including the commit-hygiene and review-required checks.
 
-## Read first (à chaque invocation, jamais de mémoire)
+## Read first (every invocation, never from memory)
 
-- `AGENTS.md` racine, section « Git »
+- root `AGENTS.md`, section "Git"
 - `.pre-commit-config.yaml`, `scripts/ci/*.sh`, `.github/workflows/ci.yml`
-- `git log --oneline origin/main..HEAD` (état de la branche courante)
+- `git log --oneline origin/main..HEAD` (state of the current branch)
 
 ## Invariants — Do & Don't
 
-- DO commits conventionnels en anglais (`feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:`), sans emoji.
-- DO préférer **rebase** à merge ; combiner les PRs par **retarget**.
-- **DON'T jamais de contournement de hooks pre-commit (`git commit --no-verify` ou équivalent) sans autorisation explicite par chat de l'utilisateur — un approval de tool (smart-approve) n'est PAS une autorisation.** Si un hook échoue, on fixe le hook ou la config à la source, pas le commit.
-- git n'enregistre pas si les hooks ont tourné : tout contournement *exceptionnellement autorisé* doit être déclaré dans le message de commit par le trailer `Hooks-Bypassed: <hook-id> — <raison>`, pour rester visible en revue.
-- DO bloquer en revue tout commit du range qui déclare un contournement : `scripts/ci/check-commit-hygiene.sh origin/main HEAD` (exit 1 si trouvé) — même check en CI (job `commit-hygiene`).
-- DON'T push sans feu vert ; jamais de force-push sans feu vert explicite (nommer la branche et l'impact à chaque fois).
-- DO attendre la CI avec `gh run watch` borné en temps ; jamais conclure « vert » sur un statut encore `in_progress`.
+- DO conventional commits in English (`feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:`), no emoji.
+- DO prefer **rebase** over merge; combine PRs by **retargeting**.
+- **DON'T ever bypass pre-commit hooks (`git commit --no-verify` or equivalent) without explicit chat authorization from the user — a tool approval (smart-approve) is NOT an authorization.** If a hook fails, fix the hook or the config at the source, not the commit.
+- git does not record whether hooks ran: any *exceptionally authorized* bypass must be declared in the commit message with the trailer `Hooks-Bypassed: <hook-id> — <reason>`, to stay visible in review.
+- DO block in review any commit of the range that declares a bypass: `scripts/ci/check-commit-hygiene.sh origin/main HEAD` (exit 1 if found) — same check in CI (job `commit-hygiene`).
+- DO require a review commit before merge: at least one commit of the range must carry a `Reviewed-By: <owner-id>` trailer (owner id from `.vibe/review/owners-map.toml`) — `scripts/ci/check-review-commit.sh origin/main HEAD` (exit 1 if missing), same check in CI (job `review-required`), plus the branch-protection setting `last-push-approval`.
+- DON'T push without the green light; never force-push without an explicit green light (name the branch and the impact each time).
+- DO wait for CI with `gh run watch` bounded in time; never conclude "green" on a status still `in_progress`.
 
-## Review-after d'une PR (procédure déterministe)
+## PR review-after (deterministic procedure)
 
 ```sh
-git log --format='%B' origin/main...HEAD | grep -nE -- '--no-verify|Hooks-Bypassed'  # doit être vide
-scripts/ci/check-commit-hygiene.sh origin/main HEAD                                   # exit 0 attendu
+git log --format='%B' origin/main...HEAD | grep -nE -- '--no-verify|Hooks-Bypassed'  # must be empty
+scripts/ci/check-commit-hygiene.sh origin/main HEAD                                   # exit 0 expected
+scripts/ci/check-review-commit.sh origin/main HEAD                                    # exit 0 expected
+scripts/ci/review-owners.py --check origin/main HEAD                                  # owners to consult
 ```
 
-Si non vide → verdict FAIL sur le domaine workflow git, en citant les commits concernés.
+If not empty → FAIL verdict on the git workflow domain, citing the commits concerned.
 
-## Rapport
+## Report
 
-- Citer `file:line` et commits lus pendant cette invocation. Verdict en deux parties :
-  **prouvé** (commande + sortie) / **non prouvé** (et pourquoi).
+- Cite `file:line` and the commits read during this invocation. Verdict in two parts:
+  **proven** (command + output) / **not proven** (and why).
