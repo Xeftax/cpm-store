@@ -22,6 +22,9 @@
 # - exclude_files verrouillé : ajout uniquement avec accord explicite de l'utilisateur
 # - les warnings restent jusqu'à ce que la règle ou les fichiers soient fixés
 # - lancer le check sur les LIGNES AJOUTÉES du diff, pas les fichiers entiers
+#
+# Exception: an id with no AST rule (e.g. `english-only`) is a doc-only contract —
+# the checker skips it; its entry documents where detection actually lives.
 
 [[pattern]]
 id = "serde-helper-identity"
@@ -172,4 +175,43 @@ severity = "warning"
 exclude_files = []
 occurrences = [
   { file = "crates/cpm-core/src/model/attribute.rs", lines = "60-132 (lookup + accesseurs typés, avant refactor)", since = "PR #3; fixed in PR #12 (review/attribute-list-crate)" },
+]
+
+[[pattern]]
+id = "closure-params-typed"
+rule = "Closure parameters always carry an explicit type (|a: &&Attribute|), even when the compiler infers it: PR diffs are read without IDE hover, and combinators like Iterator::find hand out double references (&&T) that are easy to misread in a raw diff."
+applies_to = "every closure in the repo (crates/**, tools/**)"
+when_not_applicable = "wildcard param |_| (no binding to type)"
+scope = "**/*.rs"
+message = "untyped closure parameter -> annotate it (|a: &T|). See AGENTS.md 'Language and style'."
+bad_example = """
+self.iter().find(|a| a.name.eq_ignore_ascii_case(name))
+"""
+good_example = """
+self.iter().find(|a: &&Attribute| a.name.eq_ignore_ascii_case(name))
+"""
+severity = "warning"
+exclude_files = []
+occurrences = [
+  { file = "crates/cpm-core/src/model/attribute.rs", lines = "90, 95, 101", since = "branch review/pr8-remaining" },
+  { file = "crates/cpm-core/src/model/flags.rs", lines = "175, 189", since = "branch review/pr8-remaining" },
+  { file = "crates/cpm-core/src/model/kind.rs", lines = "175, 202", since = "branch review/pr8-remaining" },
+  { file = "crates/cpm-core/src/model/mod.rs", lines = "199", since = "branch review/pr8-remaining" },
+  { file = "crates/cpm-core/src/model/sync.rs", lines = "46, 53, 64", since = "branch review/pr8-remaining" },
+  { file = "crates/cpm-core/tests/golden_annexes.rs", lines = "68, 78, 83, 245, 298, 312", since = "branch review/pr8-remaining" },
+  { file = "crates/cpm-core/tests/ports_mock.rs", lines = "57, 81, 90, 91", since = "branch review/pr8-remaining" },
+  { file = "tools/review-check/src", lines = "all closures in checker.rs, main.rs, report.rs, rules/*.rs", since = "branch review/pr8-remaining" },
+]
+
+[[pattern]]
+id = "english-only"
+rule = "All repository content is English: code, identifiers, comments (/// and //), docs, README, AGENTS.md, commit messages, PR titles/descriptions, CI scripts. French is only allowed in chat responses to the maintainer (user-level rule, not a repo rule). Detection is lexical, not AST, so it does NOT live in this linter: it is enforced by scripts/ci/check-language.py (pre-commit hook 'language', blocking CI job 'language (English-only added lines)', Vibe hooks 'language-pre-write' and 'language-post-agent'), which scans the lines ADDED by each change in every file type (.rs, .md, .toml, .yml, ...). This entry is the documented contract; the checker skips it (no AST rule with this id)."
+applies_to = "every added line of every file type"
+when_not_applicable = "generated/vendored files (**/Cargo.lock, docs/TREE.md, reports/**); pre-existing French lines — the check scans added lines only, existing docs are translated as they are touched"
+scope = "**/*"  # unused: doc-only entry, the checker skips it (no AST rule with this id)
+message = "n/a — enforced by scripts/ci/check-language.py, not by review-check"
+severity = "warning"
+exclude_files = []
+occurrences = [
+  { file = "crates/cpm-core/src/model/{attribute,flags,search,mod}.rs, crates/cpm-core/tests/ports_mock.rs", lines = "French comments translated to English", since = "English-only pass on branch review/pr8-remaining" },
 ]

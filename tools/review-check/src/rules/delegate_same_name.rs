@@ -14,7 +14,7 @@ impl Rule for DelegateSameName {
 
     fn candidates(&self, ast: &syn::File, _src: &str) -> Vec<Candidate> {
         impl_methods(ast)
-            .map(|m| Candidate {
+            .map(|m: &syn::ImplItemFn| Candidate {
                 line: line_of(&m.sig.ident),
                 violation: is_same_name_delegation(m),
             })

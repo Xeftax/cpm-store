@@ -2,6 +2,7 @@
 //! (violation/conforme). L'enregistrement est factorisé ici : ajouter une règle =
 //! un fichier dans `rules/` + une ligne dans `all()`.
 
+pub mod closure_params_typed;
 pub mod delegate_same_name;
 pub mod duplicate_fn_bodies;
 pub mod file_sections;
@@ -31,6 +32,7 @@ pub trait Rule {
 /// Registre unique des règles.
 pub fn all() -> Vec<Box<dyn Rule>> {
     vec![
+        Box::new(closure_params_typed::ClosureParamsTyped),
         Box::new(newtype_pub::NewtypePub),
         Box::new(helper_in_fn::HelperInFn),
         Box::new(manual_serde_impl::ManualSerdeImpl),
@@ -56,29 +58,29 @@ pub fn is_section_banner(l: &str) -> bool {
 }
 
 pub fn structs(ast: &syn::File) -> impl Iterator<Item = &ItemStruct> {
-    ast.items.iter().filter_map(|i| match i {
+    ast.items.iter().filter_map(|i: &Item| match i {
         Item::Struct(s) => Some(s),
         _ => None,
     })
 }
 
 pub fn fns(ast: &syn::File) -> impl Iterator<Item = &ItemFn> {
-    ast.items.iter().filter_map(|i| match i {
+    ast.items.iter().filter_map(|i: &Item| match i {
         Item::Fn(f) => Some(f),
         _ => None,
     })
 }
 
 pub fn impls(ast: &syn::File) -> impl Iterator<Item = &ItemImpl> {
-    ast.items.iter().filter_map(|i| match i {
+    ast.items.iter().filter_map(|i: &Item| match i {
         Item::Impl(imp) => Some(imp),
         _ => None,
     })
 }
 
 pub fn impl_methods(ast: &syn::File) -> impl Iterator<Item = &syn::ImplItemFn> {
-    impls(ast).flat_map(|imp| {
-        imp.items.iter().filter_map(|s| match s {
+    impls(ast).flat_map(|imp: &ItemImpl| {
+        imp.items.iter().filter_map(|s: &ImplItem| match s {
             ImplItem::Fn(m) => Some(m),
             _ => None,
         })
@@ -93,8 +95,8 @@ mod tests {
         let ast = syn::parse_file(src).unwrap();
         rule.candidates(&ast, src)
             .into_iter()
-            .filter(|c| c.violation)
-            .map(|c| c.line)
+            .filter(|c: &Candidate| c.violation)
+            .map(|c: Candidate| c.line)
             .collect()
     }
 
@@ -169,7 +171,7 @@ impl AttributeList {
     fn file_sections_flags_big_file_without_banners() {
         let r = file_sections::FileSections;
         let big = (0..12)
-            .map(|i| format!("fn f{i}() {{}}"))
+            .map(|i: i32| format!("fn f{i}() {{}}"))
             .collect::<Vec<_>>()
             .join("\n");
         assert_eq!(violations(&r, &big).len(), 1);
@@ -219,6 +221,41 @@ impl L {
         // conforme : CLI mince (mod + fn main uniquement)
         let ok = "mod checker;\nfn main() {}\n";
         assert!(violations(&r, ok).is_empty());
+    }
+
+    #[test]
+    fn closure_params_typed_flags_untyped_params() {
+        let r = closure_params_typed::ClosureParamsTyped;
+        // untyped param -> violation at the closure line
+        assert_eq!(violations(&r, "fn f() { let g = |a| a + 1; }"), vec![1]);
+        assert_eq!(
+            violations(&r, "fn f(xs: &[i32]) { xs.iter().find(|a| *a == 1); }"),
+            vec![1]
+        );
+        // typed param -> compliant
+        assert!(violations(&r, "fn f() { let g = |a: i32| a + 1; }").is_empty());
+        assert!(violations(
+            &r,
+            "fn f(xs: &[i32]) { xs.iter().find(|a: &&i32| **a == 1); }"
+        )
+        .is_empty());
+        // wildcard -> compliant (nothing to type)
+        assert!(violations(&r, "fn f() { let g = |_| 1; }").is_empty());
+        // no params -> no candidate
+        assert!(violations(&r, "fn f() { let g = || 1; }").is_empty());
+        // tuple pattern must be typed as a whole
+        assert_eq!(
+            violations(
+                &r,
+                "fn f(pairs: &[(i32, i32)]) { pairs.iter().find(|(k, _)| *k == 1); }"
+            ),
+            vec![1]
+        );
+        assert!(violations(
+            &r,
+            "fn f(pairs: &[(i32, i32)]) { pairs.iter().find(|(k, _): &(i32, i32)| k == &1); }"
+        )
+        .is_empty());
     }
 
     #[test]
