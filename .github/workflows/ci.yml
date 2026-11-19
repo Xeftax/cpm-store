@@ -65,6 +65,19 @@ jobs:
       - run: cargo install cargo-deny --locked
       - run: scripts/ci/security-rust.sh
 
+  commit-hygiene:
+    name: commit-hygiene (aucun contournement de hooks dans les commits)
+    runs-on: ubuntu-latest
+    steps:
+      # historique complet : le scan porte sur les messages de commit du range
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: >-
+          scripts/ci/check-commit-hygiene.sh
+          "${{ github.event.pull_request.base.sha || 'origin/main' }}"
+          "${{ github.event.pull_request.head.sha || 'HEAD' }}"
+
   gitleaks:
     name: secret scan (gitleaks, binaire vérifié par le script)
     runs-on: ubuntu-latest

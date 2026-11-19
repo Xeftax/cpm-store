@@ -77,6 +77,15 @@ un point n'est pas couvert par la spec, le noter explicitement dans la PR.
 - Commits conventionnels en anglais (`feat:`, `fix:`, `docs:`, `test:`,
   `refactor:`, `chore:`).
 - Pas d'emoji dans les commits.
+- **Jamais de contournement de hooks pre-commit** (`git commit --no-verify` ou
+  équivalent) sans **autorisation explicite par chat** de l'utilisateur : un approval
+  de tool (smart-approve) n'est pas une autorisation. Si un hook échoue, on fixe le
+  hook à la source, pas le commit (ex. 2026-11-17 : cargo-deny bloquait sur
+  RUSTSEC-2026-0543, chrono unmaintained, migration vers jiff, commit c8f0200).
+  Tout contournement exceptionnellement autorisé doit être déclaré dans le message de
+  commit (trailer `Hooks-Bypassed: <hook> — <raison>`) : visible en revue, bloqué par
+  le job CI `commit-hygiene` (`scripts/ci/check-commit-hygiene.sh`). Owner du
+  domaine : `.vibe/skills/git-workflow-owner/SKILL.md`.
 
 ## Travailler avec un LLM sur ce dépôt
 
