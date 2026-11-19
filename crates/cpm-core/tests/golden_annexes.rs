@@ -1,9 +1,9 @@
-//! Golden tests: the JSON examples of the spec annexes, round-tripped through
+//! Golden tests: the JSON examples of the spec appendices, round-tripped through
 //! the `cpm-core` models.
 //!
 //! PDF-first (ADR D9): when `docs/specs/pdf/<spec>.pdf` is present locally
 //! (fetched with `python3 tools/specs_fetch.py`), the text is extracted with
-//! `pdftotext` and the JSON examples are pulled out of the annexes. Otherwise
+//! `pdftotext` and the JSON examples are pulled out of the appendices. Otherwise
 //! the local markdown conversion (`docs/specs/<spec>.md`) is used. When neither
 //! is available (e.g. CI, where OMA documents are gitignored and not fetched),
 //! the test skips gracefully.
@@ -12,7 +12,7 @@
 //! `target/`) and are **never committed** (ADR D9: annex content is (c) OMA).
 //!
 //! Sources covered:
-//! - [CPM-REST] annexes C–H (message object, session history folder, file
+//! - [CPM-REST] Appendices C–H (message object, session history folder, file
 //!   transfer history, session info, group state, call log);
 //! - [REST-NMS] Appendix D (JSON examples: objects, folders, subscriptions,
 //!   notifications, bulk responses, ...).
@@ -65,7 +65,7 @@ fn spec_text(spec: &str) -> Option<(String, Source)> {
     if md.exists() {
         return std::fs::read_to_string(md)
             .ok()
-            .map(|t| (t, Source::Markdown));
+            .map(|t: String| (t, Source::Markdown));
     }
     None
 }
@@ -75,12 +75,12 @@ fn spec_text(spec: &str) -> Option<(String, Source)> {
 fn strip_noise(text: &str) -> String {
     text.replace('\u{000c}', "")
         .lines()
-        .filter(|l| {
+        .filter(|l: &&str| {
             let t = l.trim();
             let lower = t.to_ascii_lowercase();
             let doc_id = t.starts_with("OMA-")
                 && t.chars()
-                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_'));
+                    .all(|c: char| c.is_ascii_alphanumeric() || matches!(c, '-' | '_'));
             !(t.contains("Open Mobile Alliance")
                 || t.contains("Used with the permission")
                 || lower.contains("[oma-template")
@@ -93,7 +93,7 @@ fn strip_noise(text: &str) -> String {
 
 // ==== JSON candidate extraction (PDF artifact repair) ====
 /// Extracts balanced-brace JSON candidates from free text (HTTP traces in the
-/// annexes mix headers and JSON; only the JSON part is kept).
+/// appendices mix headers and JSON; only the JSON part is kept).
 ///
 /// pdftotext artifacts repaired here: long lines are wrapped *inside* JSON
 /// strings, the closing quote of a value at end of line may be dropped, and a
@@ -232,7 +232,7 @@ where
     t
 }
 
-// ==== Golden tests (spec annexes) ====
+// ==== Golden tests (spec appendices) ====
 /// Annexes C–H of [CPM-REST]: message/session/file-transfer/group-state/
 /// call-log object examples.
 #[test]
@@ -241,8 +241,11 @@ fn golden_cpm_rest_annexes_c_h_round_trip() {
         eprintln!("skip: no OMA source for {CPM_REST} (run tools/specs_fetch.py)");
         return;
     };
-    // Keep only the annexes region (from the last "Appendix C" heading).
-    let start = raw.rmatch_indices("Appendix C").next().map(|(i, _)| i);
+    // Keep only the appendices region (from the last "Appendix C" heading).
+    let start = raw
+        .rmatch_indices("Appendix C")
+        .next()
+        .map(|(i, _): (usize, &str)| i);
     let Some(start) = start else {
         eprintln!("skip: no Appendix C found");
         return;
@@ -265,7 +268,7 @@ fn golden_cpm_rest_annexes_c_h_round_trip() {
     }
     assert!(
         objects >= 3,
-        "expected several object examples from annexes C-H, got {objects}"
+        "expected several object examples from Appendices C-H, got {objects}"
     );
     // The full annex C GET response only survives extraction from the PDF
     // (the markdown conversion truncates its long JSON lines).
@@ -295,7 +298,10 @@ fn golden_rest_nms_appendix_d_round_trip() {
         eprintln!("skip: no OMA source for {REST_NMS} (run tools/specs_fetch.py)");
         return;
     };
-    let start = raw.rmatch_indices("Appendix D").next().map(|(i, _)| i);
+    let start = raw
+        .rmatch_indices("Appendix D")
+        .next()
+        .map(|(i, _): (usize, &str)| i);
     let Some(start) = start else {
         eprintln!("skip: no Appendix D found");
         return;
@@ -309,7 +315,7 @@ fn golden_rest_nms_appendix_d_round_trip() {
     for (i, v) in values.iter().enumerate() {
         let key = v
             .as_object()
-            .and_then(|o| o.keys().next().cloned())
+            .and_then(|o: &serde_json::Map<String, serde_json::Value>| o.keys().next().cloned())
             .unwrap_or_default();
         match key.as_str() {
             "object" => {

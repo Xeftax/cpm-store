@@ -4,7 +4,7 @@
 //!   REST-NMS Appendix I (at least "voice-message", "video-message",
 //!   "fax-message", "pager-message", "multimedia-message", "text-message",
 //!   "none"; case-insensitive; profiles may define others). [CPM-REST] adds
-//!   "chat-message" (annexes D/F), "file-message" (§5.3.2), "group-state-message"
+//!   "chat-message" (Appendices D/F), "file-message" (§5.3.2), "group-state-message"
 //!   (annex G) and "imdn-message" (§5.3.10).
 //! - `CpmObjectKind` classifies an [`NmsObject`](super::object::NmsObject) per
 //!   the object kinds of spec §5.3.1–§5.3.10 and the non-CPM flag template of
@@ -20,7 +20,7 @@ use super::object::NmsObject;
 
 // ==== MessageContext — REST-NMS Appendix I ====
 /// Value of the `Message-Context` attribute (REST-NMS Appendix I; CPM-REST
-/// §5.3.2/§5.3.10 and annexes C–H). Case-insensitive.
+/// §5.3.2/§5.3.10 and Appendices C–H). Case-insensitive.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum MessageContext {
     VoiceMessage,
@@ -32,7 +32,7 @@ pub enum MessageContext {
     MultimediaMessage,
     /// Email (REST-NMS Appendix I).
     TextMessage,
-    /// CPM chat message (CPM-REST annexes D/F).
+    /// CPM chat message (CPM-REST Appendices D/F).
     ChatMessage,
     /// File transfer history object — MUST be "file-message" (spec §5.3.2).
     FileMessage,
@@ -85,14 +85,14 @@ impl MessageContext {
 }
 
 // ---- Wire mapping (serde) : as_str / parse, case-insensitive (REST-NMS §5.3.2.4) ----
-// review: ignore manual-serde-impl — enum a mapping custom de variantes (chaines wire via as_str/parse) ; un derive ne peut pas l'exprimer (voir known-patterns when_not_applicable)
+// review: ignore manual-serde-impl — enum with custom variant mapping (wire strings via as_str/parse); a derive cannot express it (see known-patterns when_not_applicable)
 impl Serialize for MessageContext {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.serialize_str(&self.as_str())
     }
 }
 
-// review: ignore manual-serde-impl — idem : deserialisation via parse (variantes custom, REST-NMS Appendix I)
+// review: ignore manual-serde-impl — same: deserialization via parse (custom variants, REST-NMS Appendix I)
 impl<'de> Deserialize<'de> for MessageContext {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let s = String::deserialize(deserializer)?;
@@ -172,7 +172,7 @@ impl NmsObject {
 pub(crate) fn cpm_kind(attributes: &AttributeList, flags: &FlagList) -> CpmObjectKind {
     // Non-CPM object flags take precedence: they identify the object without
     // opening it (spec §5.3.9.2).
-    if flags.iter().any(|f| match f {
+    if flags.iter().any(|f: &MetadataFlag| match f {
         MetadataFlag::Keyword(k) => k.to_ascii_lowercase().starts_with("$cpm_calllog"),
         _ => false,
     }) {
@@ -199,7 +199,7 @@ mod tests {
         AttributeList::from(
             pairs
                 .iter()
-                .map(|(n, v)| Attribute::new(*n, vec![(*v).to_owned()]))
+                .map(|(n, v): &(&str, &str)| Attribute::new(*n, vec![(*v).to_owned()]))
                 .collect::<Vec<_>>(),
         )
     }

@@ -228,8 +228,8 @@ struct RequestErrorBody {
     variables: Option<Vec<String>>,
 }
 
-// RequestError est enveloppée sous la clé de son kind (policyException/serviceException) :
-// forme non exprimable par un derive + attributs champ (known-patterns when_not_applicable).
+// RequestError is wrapped under its kind key (policyException/serviceException):
+// a shape not expressible with a derive + field attributes (known-patterns when_not_applicable).
 // review: ignore manual-serde-impl
 impl Serialize for RequestError {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
@@ -251,8 +251,8 @@ impl Serialize for RequestError {
     }
 }
 
-// Parse : accepte la forme enveloppée {"requestError": {...}} et la forme embarquée
-// {"policyException": {...}} (exemples REST-NMS Annexe D), non exprimable par un derive.
+// Parse: accepts the wrapped {"requestError": {...}} form and the embedded
+// {"policyException": {...}} form (REST-NMS Appendix D examples), not expressible with a derive.
 // review: ignore manual-serde-impl
 impl<'de> Deserialize<'de> for RequestError {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
