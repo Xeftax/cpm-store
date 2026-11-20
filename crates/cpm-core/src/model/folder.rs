@@ -98,7 +98,6 @@ pub struct Folder {
     pub name: Option<String>,
     /// Last mod-sequence value (strict sync, REST-NMS §5.1.4.4).
     #[serde(
-        default,
         skip_serializing_if = "Option::is_none",
         deserialize_with = "super::de_u64_or_str"
     )]
@@ -123,7 +122,7 @@ pub struct FolderEnvelope {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct FolderList {
-    #[serde(default, deserialize_with = "super::one_or_many")]
+    #[serde(deserialize_with = "super::one_or_many")]
     pub folder: Vec<Folder>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cursor: Option<String>,
@@ -133,7 +132,7 @@ pub struct FolderList {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct PathList {
-    #[serde(default, deserialize_with = "super::one_or_many")]
+    #[serde(deserialize_with = "super::one_or_many")]
     pub path: Vec<String>,
 }
 

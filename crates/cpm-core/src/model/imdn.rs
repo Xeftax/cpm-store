@@ -38,7 +38,6 @@ pub struct ImdnList {
     #[serde(deserialize_with = "super::one_or_many")]
     pub imdn: Vec<Imdn>,
     #[serde(
-        default,
         skip_serializing_if = "Option::is_none",
         deserialize_with = "super::de_u64_or_str"
     )]
