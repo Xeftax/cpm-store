@@ -8,14 +8,24 @@
 //! - B: `alias = "X"` where X equals the effective (renamed) wire name.
 //! - C: a bare field-level `default` when the container already has `default` —
 //!   container default wins for missing fields, so the field-level one is dead code.
+//! - D: a `rename` that is NOT redundant (differs from the `rename_all` output, e.g.
+//!   a wire acronym like "resourceURL") must be explained by a comment on the same
+//!   line as the attribute (`#[serde(rename = "resourceURL")] // wire ...`) or by a
+//!   `///` doc comment on the member — otherwise the next reader assumes it is a
+//!   duplicate of rename_all and deletes it.
 //!
 //! The RenameRule implementation mirrors serde_derive's rename rules (field vs
 //! variant context), so the comparison is exact rather than pattern-matched.
 
 use super::{line_of, structs, Candidate, Rule};
+use syn::spanned::Spanned;
 use syn::{Attribute, Field, Item, ItemEnum, LitStr, Variant};
 
+// ==== Rule entry point ====
+
 pub struct SerdeRedundantAttr;
+
+// ==== RenameRule: serde_derive-compatible rename rules ====
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum RenameRule {
@@ -102,6 +112,8 @@ fn to_snake(id: &str) -> String {
     out
 }
 
+// ==== Attribute parsing ====
+
 #[derive(Default)]
 struct ContainerAttrs {
     rename_all: Option<RenameRule>,
@@ -166,6 +178,8 @@ fn enums(ast: &syn::File) -> impl Iterator<Item = &ItemEnum> {
     })
 }
 
+// ==== Member checking (rules A/B/C/D) ====
+
 fn effective_name(ident: &str, rule: Option<RenameRule>, is_variant: bool) -> String {
     let id = ident.strip_prefix("r#").unwrap_or(ident);
     match rule {
@@ -175,21 +189,43 @@ fn effective_name(ident: &str, rule: Option<RenameRule>, is_variant: bool) -> St
     }
 }
 
+/// True when the attribute is explained by a // comment: on one of the attribute's
+/// own lines (trailing comment) or on the single line right after it when rustfmt
+/// wrapped a too-long trailing comment there. Comments are not in the AST, so this
+/// reads the source around the attribute's line span.
+fn attr_has_comment(attr: &Attribute, src: &str) -> bool {
+    let start = attr.span().start().line;
+    let end = attr.span().end().line;
+    let lines: Vec<&str> = src.lines().collect();
+    let in_attr = |i: usize| (i + 1) >= start && (i + 1) <= end;
+    let wrapped = end < lines.len() && lines[end].trim_start().starts_with("//");
+    lines
+        .iter()
+        .enumerate()
+        .any(|(i, l)| in_attr(i) && l.contains("//"))
+        || wrapped
+}
+
 fn check_member(
     out: &mut Vec<Candidate>,
     cont: &ContainerAttrs,
     attrs: &[Attribute],
     ident: &str,
     is_variant: bool,
+    src: &str,
 ) {
     let eff = effective_name(ident, cont.rename_all, is_variant);
+    let has_doc = attrs.iter().any(|a| a.path().is_ident("doc"));
     for attr in serde_attrs(attrs) {
         let line = line_of(attr);
         let fa = parse_field_attrs(attr);
         if let Some(r) = &fa.rename {
+            // rule A: rename == effective name -> redundant. rule D: a load-bearing
+            // rename (differs from the rename_all output) must be commented.
+            let documented = has_doc || attr_has_comment(attr, src);
             out.push(Candidate {
                 line,
-                violation: r == &eff,
+                violation: r == &eff || !documented,
             });
         }
         for a in &fa.aliases {
@@ -220,7 +256,7 @@ impl Rule for SerdeRedundantAttr {
         "serde-redundant-attr"
     }
 
-    fn candidates(&self, ast: &syn::File, _src: &str) -> Vec<Candidate> {
+    fn candidates(&self, ast: &syn::File, src: &str) -> Vec<Candidate> {
         let mut out = Vec::new();
         for s in structs(ast) {
             let cont = serde_attrs(&s.attrs).map(parse_container).fold(
@@ -232,7 +268,7 @@ impl Rule for SerdeRedundantAttr {
                 },
             );
             for (i, field) in s.fields.iter().enumerate() {
-                check_member(&mut out, &cont, &field.attrs, &field_ident(field, i), false);
+                check_member(&mut out, &cont, &field.attrs, &field_ident(field, i), false, src);
             }
         }
         for e in enums(ast) {
@@ -245,10 +281,10 @@ impl Rule for SerdeRedundantAttr {
                 },
             );
             for v in &e.variants {
-                check_member(&mut out, &cont, &v.attrs, &v.ident.to_string(), true);
+                check_member(&mut out, &cont, &v.attrs, &v.ident.to_string(), true, src);
                 let variant: &Variant = v;
                 for (i, field) in variant.fields.iter().enumerate() {
-                    check_member(&mut out, &cont, &field.attrs, &field_ident(field, i), false);
+                    check_member(&mut out, &cont, &field.attrs, &field_ident(field, i), false, src);
                 }
             }
         }

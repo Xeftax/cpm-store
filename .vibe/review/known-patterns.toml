@@ -218,11 +218,11 @@ occurrences = [
 
 [[pattern]]
 id = "serde-redundant-attr"
-rule = "A field/variant-level #[serde(...)] attribute is redundant when the container-level attribute already produces the same effect: (A) rename = \"X\" where X equals what the container's rename_all produces for that ident (or equals the ident itself without rename_all) — the wire-acronym case is NOT redundant, camelCase(\"resource_url\") is \"resourceUrl\" so rename = \"resourceURL\" is load-bearing; (B) alias = \"X\" where X equals the effective wire name; (C) a bare field-level default when the container already has default (container default wins for missing fields). Detection computes serde's RenameRule exactly (field vs variant context), it does not pattern-match."
+rule = "Field/variant-level #[serde(...)] attributes vs the container-level one: (A) rename = \"X\" where X equals what the container's rename_all produces for that ident (or equals the ident itself without rename_all) is REDUNDANT -> remove it; (B) alias = \"X\" where X equals the effective wire name is redundant; (C) a bare field-level default when the container already has default is dead (container default wins) -> remove it; (D) a rename that is NOT redundant (differs from the rename_all output, e.g. the wire acronym resourceURL where camelCase gives resourceUrl) is load-bearing and MUST be explained by a comment: a trailing // on the attribute line (#[serde(rename = \"resourceURL\")] // wire ...), the line right after it when rustfmt wrapped a long trailing comment there, or a /// doc on the member — without it the next reader assumes it duplicates rename_all and deletes it. Detection computes serde's RenameRule exactly (field vs variant context), it does not pattern-match."
 applies_to = "every struct/enum with #[serde(...)] attributes in crates/**"
-when_not_applicable = "rename values that differ from the rename_all output (spec wire acronyms like resourceURL/notifyURL); default = \"path\" (custom default fn) is never flagged, only a bare default under a container default"
+when_not_applicable = "default = \"path\" (custom default fn) is never flagged, only a bare default under a container default; a rename equal to the rename_all output is rule A (remove), never rule D (document)"
 scope = "crates/**/*.rs"
-message = "redundant serde attribute: the container-level attribute already covers it -> remove the field/variant-level one. Wire-acronym renames (resourceURL) are intentional, keep them. See .vibe/skills/serde-mapping-owner."
+message = "rule A/B/C: redundant serde attribute, remove the field/variant-level one. rule D: load-bearing rename (wire acronym like resourceURL) -> add a /// comment on the member explaining the wire name. See .vibe/skills/serde-mapping-owner."
 bad_example = """
 #[serde(rename_all = "camelCase", default)]
 struct SelectionCriteria {
@@ -246,4 +246,7 @@ occurrences = [
   { file = "crates/cpm-core/src/model/object.rs", lines = "37-41, 99-103, 140", since = "branch review/pr8-remaining, fixed" },
   { file = "crates/cpm-core/src/model/subscription.rs", lines = "70", since = "branch review/pr8-remaining, fixed" },
   { file = "crates/cpm-core/src/model/events.rs", lines = "NmsEvent variants 110-122: rename_all = camelCase added to the enum, 7 variant renames removed as redundant (wire format unchanged, golden tests green)", since = "branch review/pr8-remaining, fixed" },
+  { file = "crates/cpm-core/src/model/folder.rs", lines = "40, 52: rename folderReference/objectReference == camelCase(field) -> removed as redundant (rule A)", since = "branch review/pr8-remaining, fixed" },
+  { file = "crates/cpm-core/src/model/{events,folder,imdn,search,subscription}.rs", lines = "15 explicit renames (resourceURL x9, notifyURL, type x3, policyException/serviceException variants) carry a // wire-name comment on the attribute line or the wrapped next line (rule D)", since = "branch review/pr8-remaining, fixed" },
+  { file = "crates/cpm-core/src/model/folder.rs", lines = "FolderReferenceList/ObjectReferenceList: rename_all = camelCase added to the containers, field renames and bare defaults removed (wire keys folderReference/objectReference unchanged)", since = "branch review/pr8-remaining, fixed" },
 ]

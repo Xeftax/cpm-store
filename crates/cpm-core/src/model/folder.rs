@@ -36,24 +36,18 @@ impl Reference {
 /// `FolderReferenceList` — REST-NMS §5.3.2.10
 /// (JSON shape `{"folderReference": [...]}`).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
 pub struct FolderReferenceList {
-    #[serde(
-        rename = "folderReference",
-        default,
-        deserialize_with = "super::one_or_many"
-    )]
+    #[serde(deserialize_with = "super::one_or_many")]
     pub folder_reference: Vec<Reference>,
 }
 
 /// `ObjectReferenceList` — REST-NMS §5.3.2.12
 /// (JSON shape `{"objectReference": [...]}`).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
 pub struct ObjectReferenceList {
-    #[serde(
-        rename = "objectReference",
-        default,
-        deserialize_with = "super::one_or_many"
-    )]
+    #[serde(deserialize_with = "super::one_or_many")]
     pub object_reference: Vec<Reference>,
 }
 
@@ -88,6 +82,7 @@ pub struct Folder {
     /// Folder attributes; standard names in REST-NMS Appendix J ("Root",
     /// "Name", ...), RCS names in Appendix K ("MsgCount", ...).
     pub attributes: AttributeList,
+    /// Wire name "resourceURL" — the spec writes the URL acronym in caps; camelCase would give "resourceUrl".
     #[serde(rename = "resourceURL", skip_serializing_if = "Option::is_none")]
     pub resource_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -284,6 +284,7 @@ impl L {
 struct S {
     #[serde(rename = "name", alias = "name")]
     name: String,
+    /// Wire name "resourceURL" (spec acronym; camelCase would give "resourceUrl").
     #[serde(rename = "resourceURL")]
     resource_url: String,
 }
@@ -316,8 +317,29 @@ enum E {
 "#;
         assert_eq!(
             violations(&r, src_enum).len(),
+            2,
+            "ResetBox: rename == camelCase(variant) -> redundant (rule A); OtherThing: rename != camelCase and no doc -> undocumented (rule D)"
+        );
+        // rule D: a load-bearing rename (differs from rename_all output) needs a ///
+        // comment on the member; a redundant one is flagged regardless of the doc
+        let src_doc = r#"
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct W {
+    #[serde(rename = "resourceURL")] // wire "resourceURL": spec caps acronym, not camelCase "resourceUrl"
+    resource_url: String,
+    /// Wire name "notifyURL" (spec acronym; camelCase would give "notifyUrl").
+    #[serde(rename = "notifyURL")]
+    notify_url: String,
+    #[serde(rename = "callbackURL")]
+    callback_url: String,
+}
+"#;
+        let v = violations(&r, src_doc);
+        assert_eq!(
+            v.len(),
             1,
-            "only ResetBox's rename matches camelCase"
+            "trailing-comment and /// renames ok, undocumented callbackURL flagged: {v:?}"
         );
     }
 
