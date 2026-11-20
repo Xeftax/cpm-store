@@ -82,8 +82,8 @@ pub struct Folder {
     /// Folder attributes; standard names in REST-NMS Appendix J ("Root",
     /// "Name", ...), RCS names in Appendix K ("MsgCount", ...).
     pub attributes: AttributeList,
-    /// Wire name "resourceURL" — the spec writes the URL acronym in caps; camelCase would give "resourceUrl".
     #[serde(rename = "resourceURL", skip_serializing_if = "Option::is_none")]
+    // wire "resourceURL" != camelCase "resourceUrl"
     pub resource_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,

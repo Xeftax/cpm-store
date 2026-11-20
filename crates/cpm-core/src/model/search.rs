@@ -62,8 +62,7 @@ pub enum Operation {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchCriterion {
-    /// Wire name "type" (REST-NMS §5.3.2.19), not the camelCase "searchType".
-    #[serde(rename = "type")]
+    #[serde(rename = "type")] // wire "type" != camelCase "searchType"
     pub search_type: SearchType,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -85,8 +84,7 @@ pub struct SearchCriteria {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SortCriterion {
-    /// Wire name "type" (REST-NMS §5.3.2.21), not the camelCase "sortType".
-    #[serde(rename = "type")]
+    #[serde(rename = "type")] // wire "type" != camelCase "sortType"
     pub sort_type: SortType,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -184,11 +182,9 @@ pub struct BulkResponse {
 /// `policyException` or `serviceException`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum RequestErrorKind {
-    /// Wire name "policyException" ([REST_NetAPI_Common] exception kind).
-    #[serde(rename = "policyException")]
+    #[serde(rename = "policyException")] // wire: REST_NetAPI_Common exception kind
     Policy,
-    /// Wire name "serviceException" ([REST_NetAPI_Common] exception kind).
-    #[serde(rename = "serviceException")]
+    #[serde(rename = "serviceException")] // wire: REST_NetAPI_Common exception kind
     Service,
 }
 
