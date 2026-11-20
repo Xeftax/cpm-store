@@ -15,6 +15,7 @@ use super::search::SearchCriteria;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CallbackReference {
+    /// Wire name "notifyURL" — spec acronym in caps; camelCase would give "notifyUrl".
     #[serde(rename = "notifyURL")]
     pub notify_url: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -34,6 +35,7 @@ pub struct NmsSubscription {
     pub filter: Option<SearchCriteria>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_correlator: Option<String>,
+    /// Wire name "resourceURL" — the spec writes the URL acronym in caps; camelCase would give "resourceUrl".
     #[serde(rename = "resourceURL", skip_serializing_if = "Option::is_none")]
     pub resource_url: Option<String>,
     /// Index of the next notification, meaningful only within this
@@ -69,6 +71,7 @@ pub struct NmsSubscription {
 pub struct NmsSubscriptionList {
     #[serde(deserialize_with = "super::one_or_many")]
     pub subscription: Vec<NmsSubscription>,
+    /// Wire name "resourceURL" — the spec writes the URL acronym in caps; camelCase would give "resourceUrl".
     #[serde(rename = "resourceURL", skip_serializing_if = "Option::is_none")]
     pub resource_url: Option<String>,
 }

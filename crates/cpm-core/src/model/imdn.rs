@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImdnInfo {
+    /// Wire name "type" (RFC 5438 disposition type), not the camelCase "dispositionType".
     #[serde(rename = "type")]
     pub disposition_type: String,
     /// xsd:dateTimeStamp — when the IMDN was sent.
@@ -42,6 +43,7 @@ pub struct ImdnList {
         deserialize_with = "super::de_u64_or_str"
     )]
     pub last_mod_seq: Option<u64>,
+    /// Wire name "resourceURL" — the spec writes the URL acronym in caps; camelCase would give "resourceUrl".
     #[serde(rename = "resourceURL", skip_serializing_if = "Option::is_none")]
     pub resource_url: Option<String>,
 }
