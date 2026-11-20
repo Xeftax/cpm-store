@@ -1,0 +1,16 @@
+# gitlint configuration - conventional-commit titles, no hook bypass in bodies.
+# Single source of truth for both call sites (pre-commit hook and CI), which run
+# the same command through scripts/ci/gitlint.sh.
+#
+# T5 (title-match-regex) enforces the conventional-commit types AGENTS.md allows,
+# plus `review:` — empty review commits carrying a Reviewed-By trailer (see
+# docs/workflow.md, review-after procedure).
+# The body rule (no hook bypass) is custom: scripts/ci/gitlint_rules.py,
+# loaded via extra-path below. It mirrors the intent of check-commit-hygiene.sh,
+# which lives only on the unmerged review/pr8-remaining branch.
+
+[general]
+extra-path = scripts/ci/gitlint_rules.py
+
+[title-match-regex]
+regex = ^(feat|fix|docs|test|refactor|chore|review)(\([a-z0-9-]+\))?!?:

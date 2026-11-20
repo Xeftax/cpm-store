@@ -1,0 +1,16 @@
+# codespell configuration - Markdown files only (the CI job and the pre-commit hook
+# both pass .md files explicitly).
+#
+# The repo's docs are French by design (AGENTS.md, "Langue et style"), and codespell's
+# dictionaries are English-typo dictionaries: they flag ordinary French words (projet,
+# objet, moteur, ...). .codespell-ignore lists exactly the words codespell flagged on
+# the current Markdown tree, so the check stays green on French prose while still
+# catching genuine English typos in future English content. Regenerate with:
+#
+#   git ls-files '*.md' | xargs codespell 2>/dev/null \
+#     | sed 's/.*==> //' | tr ',' '\n' | tr -d ' ' | sort -uf > .codespell-ignore
+#
+# and re-review the diff: a real English typo added to that file silences itself.
+
+[codespell]
+ignore-words = .codespell-ignore
