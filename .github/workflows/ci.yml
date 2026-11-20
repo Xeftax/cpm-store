@@ -135,3 +135,57 @@ jobs:
         with:
           python-version-file: .python-version
       - run: git ls-files '*.md' | xargs scripts/ci/format-markdown.sh --check
+
+  # --- standard PR tooling ---
+
+  gitlint:
+    name: gitlint (commit messages)
+    runs-on: ubuntu-latest
+    steps:
+      # full history: gitlint lints the whole origin/main...HEAD range
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: pip install gitlint==0.19.1
+      - run: scripts/ci/gitlint.sh origin/main...HEAD
+
+  actionlint:
+    name: actionlint (workflows)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # pinned release, official installer
+      - run: bash <(curl -sSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) 1.7.7
+      - run: ./actionlint -color
+
+  codespell:
+    name: codespell (docs typos)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install codespell==2.4.3
+      - run: git ls-files '*.md' | xargs codespell
+
+  review-check-annotations:
+    name: review-check (PR annotations, informational)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      # full history: review-check diffs against origin/main
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release --locked --manifest-path tools/review-check/Cargo.toml
+      # pinned release, official installer
+      - run: curl -sSL https://raw.githubusercontent.com/reviewdog/reviewdog/master/install.sh | sh -s -- -b /usr/local/bin v0.20.3
+      - env:
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # review-check always exits 0 (ADR 0001, warning only); -fail-on-error=false
+        # keeps reviewdog informational too: annotations on PR lines, never a red job.
+        run: >
+          tools/review-check/target/release/review-check origin/main --format=gcc
+          | reviewdog -f=gcc -filter-mode=diff -reporter=github-pr-review -fail-on-error=false
