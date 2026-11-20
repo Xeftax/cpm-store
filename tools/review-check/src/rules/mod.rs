@@ -10,6 +10,7 @@ pub mod helper_in_fn;
 pub mod main_rs_thin;
 pub mod manual_serde_impl;
 pub mod newtype_pub;
+pub mod serde_redundant_attr;
 pub mod thematic_clusters;
 
 use syn::spanned::Spanned;
@@ -33,6 +34,7 @@ pub trait Rule {
 pub fn all() -> Vec<Box<dyn Rule>> {
     vec![
         Box::new(closure_params_typed::ClosureParamsTyped),
+        Box::new(serde_redundant_attr::SerdeRedundantAttr),
         Box::new(newtype_pub::NewtypePub),
         Box::new(helper_in_fn::HelperInFn),
         Box::new(manual_serde_impl::ManualSerdeImpl),
@@ -256,6 +258,67 @@ impl L {
             "fn f(pairs: &[(i32, i32)]) { pairs.iter().find(|(k, _): &(i32, i32)| k == &1); }"
         )
         .is_empty());
+    }
+
+    #[test]
+    fn rename_rule_matches_serde_outputs() {
+        use serde_redundant_attr::RenameRule;
+        let cc = RenameRule::parse("camelCase").unwrap();
+        assert_eq!(cc.apply_to_field("resource_url"), "resourceUrl");
+        assert_eq!(cc.apply_to_field("type"), "type");
+        assert_eq!(cc.apply_to_field("last_mod_seq"), "lastModSeq");
+        assert_eq!(cc.apply_to_variant("DeletedObject"), "deletedObject");
+        assert_eq!(cc.apply_to_variant("ResetBox"), "resetBox");
+        assert_eq!(RenameRule::parse("verbatim"), None);
+    }
+
+    #[test]
+    fn serde_redundant_attr_flags_rename_alias_default() {
+        let r = serde_redundant_attr::SerdeRedundantAttr;
+        // rename == camelCase(name) and alias == name are redundant; the wire-acronym
+        // rename "resourceURL" differs from camelCase("resource_url") = "resourceUrl"
+        // and must NOT be flagged.
+        let src = r#"
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct S {
+    #[serde(rename = "name", alias = "name")]
+    name: String,
+    #[serde(rename = "resourceURL")]
+    resource_url: String,
+}
+"#;
+        assert_eq!(
+            violations(&r, src).len(),
+            2,
+            "rename+alias on 'name' flagged, resourceURL not"
+        );
+        // identity rename without rename_all is redundant too
+        let src_id = "#[derive(Serialize)] struct S2 { #[serde(rename = \"x\")] x: u32 }";
+        assert_eq!(violations(&r, src_id).len(), 1);
+        // container default makes a bare field default dead
+        let src_def =
+            "#[derive(Serialize, Default)] #[serde(default)] struct T { #[serde(default)] x: u32 }";
+        assert_eq!(violations(&r, src_def).len(), 1);
+        // no container default -> field default is meaningful
+        let src_nodef = "#[derive(Serialize)] struct U { #[serde(default)] x: u32 }";
+        assert!(violations(&r, src_nodef).is_empty());
+        // enum variant rename equal to rename_all(variant) is redundant
+        let src_enum = r#"
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+enum E {
+    #[serde(rename = "resetBox")]
+    ResetBox,
+    #[serde(rename = "other")]
+    OtherThing,
+}
+"#;
+        assert_eq!(
+            violations(&r, src_enum).len(),
+            1,
+            "only ResetBox's rename matches camelCase"
+        );
     }
 
     #[test]
