@@ -27,8 +27,7 @@ pub struct Link {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DeletedObject {
-    /// Wire name "resourceURL" — the spec writes the URL acronym in caps; camelCase would give "resourceUrl".
-    #[serde(rename = "resourceURL")]
+    #[serde(rename = "resourceURL")] // wire "resourceURL" != camelCase "resourceUrl"
     pub resource_url: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub attributes: Option<AttributeList>,
@@ -48,8 +47,7 @@ pub struct DeletedObject {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DeletedFolder {
-    /// Wire name "resourceURL" — the spec writes the URL acronym in caps; camelCase would give "resourceUrl".
-    #[serde(rename = "resourceURL")]
+    #[serde(rename = "resourceURL")] // wire "resourceURL" != camelCase "resourceUrl"
     pub resource_url: String,
     #[serde(
         default,
@@ -68,8 +66,7 @@ pub struct ChangedObject {
     pub flags: FlagList,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub imdns: Option<ImdnList>,
-    /// Wire name "resourceURL" — the spec writes the URL acronym in caps; camelCase would give "resourceUrl".
-    #[serde(rename = "resourceURL")]
+    #[serde(rename = "resourceURL")] // wire "resourceURL" != camelCase "resourceUrl"
     pub resource_url: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub attributes: Option<AttributeList>,
@@ -90,8 +87,7 @@ pub struct ChangedObject {
 #[serde(rename_all = "camelCase")]
 pub struct ChangedFolder {
     pub parent_folder: String,
-    /// Wire name "resourceURL" — the spec writes the URL acronym in caps; camelCase would give "resourceUrl".
-    #[serde(rename = "resourceURL")]
+    #[serde(rename = "resourceURL")] // wire "resourceURL" != camelCase "resourceUrl"
     pub resource_url: String,
     pub name: String,
     #[serde(
