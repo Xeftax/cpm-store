@@ -15,14 +15,14 @@ impl Rule for HelperInFn {
         // fonctions libres ET méthodes d'impl (un Helper serde vit souvent dans
         // `impl Deserialize for X { fn deserialize(...) { struct Helper ... } }`)
         fns(ast)
-            .map(|f| (line_of(&f.sig.ident), &*f.block))
-            .chain(impl_methods(ast).map(|m| (line_of(&m.sig.ident), &m.block)))
-            .map(|(line, block)| Candidate {
+            .map(|f: &syn::ItemFn| (line_of(&f.sig.ident), &*f.block))
+            .chain(impl_methods(ast).map(|m: &syn::ImplItemFn| (line_of(&m.sig.ident), &m.block)))
+            .map(|(line, block): (usize, &syn::Block)| Candidate {
                 line,
                 violation: block
                     .stmts
                     .iter()
-                    .any(|s| matches!(s, Stmt::Item(Item::Struct(_)))),
+                    .any(|s: &syn::Stmt| matches!(s, Stmt::Item(Item::Struct(_)))),
             })
             .collect()
     }

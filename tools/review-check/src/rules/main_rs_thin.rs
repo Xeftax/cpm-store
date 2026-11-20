@@ -15,7 +15,7 @@ impl Rule for MainRsThin {
     fn candidates(&self, ast: &syn::File, _src: &str) -> Vec<Candidate> {
         ast.items
             .iter()
-            .map(|item| Candidate {
+            .map(|item: &Item| Candidate {
                 line: line_of(item),
                 violation: matches!(
                     item,

@@ -53,12 +53,16 @@ impl Rule for ThematicClusters {
         let src_lines: Vec<&str> = src.lines().collect();
         clusters
             .iter()
-            .map(|members| {
-                let first_line = members.iter().map(|n| fn_lines[n]).min().unwrap_or(1);
+            .map(|members: &Vec<String>| {
+                let first_line = members
+                    .iter()
+                    .map(|n: &String| fn_lines[n])
+                    .min()
+                    .unwrap_or(1);
                 // bannière de section dans les 5 lignes précédant le premier membre ?
                 let has_banner = (first_line.saturating_sub(5)..first_line)
-                    .filter_map(|i| i.checked_sub(1).and_then(|j| src_lines.get(j)))
-                    .any(|l| super::is_section_banner(l));
+                    .filter_map(|i: usize| i.checked_sub(1).and_then(|j: usize| src_lines.get(j)))
+                    .any(|l: &&str| super::is_section_banner(l));
                 Candidate {
                     line: first_line,
                     violation: !has_banner,
@@ -96,7 +100,10 @@ struct UnionFind {
 impl UnionFind {
     fn new(names: &HashMap<String, usize>) -> Self {
         UnionFind {
-            parent: names.keys().map(|k| (k.clone(), k.clone())).collect(),
+            parent: names
+                .keys()
+                .map(|k: &String| (k.clone(), k.clone()))
+                .collect(),
         }
     }
     fn find(&mut self, x: &str) -> String {
@@ -122,7 +129,7 @@ impl UnionFind {
         }
         groups
             .into_values()
-            .filter(|g| g.len() >= min_size)
+            .filter(|g: &Vec<String>| g.len() >= min_size)
             .collect()
     }
 }

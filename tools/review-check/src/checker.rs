@@ -73,8 +73,8 @@ fn added_lines(root: &str, base: &str, refr: &str) -> HashMap<String, HashSet<us
             lineno = line
                 .split('+')
                 .nth(1)
-                .and_then(|s| s.split(',').next())
-                .and_then(|n| n.parse().ok())
+                .and_then(|s: &str| s.split(',').next())
+                .and_then(|n: &str| n.parse().ok())
                 .unwrap_or(0);
         } else if let Some(c) = &cur {
             if line.starts_with('+') && !line.starts_with("+++") {
@@ -112,6 +112,10 @@ pub fn load_config(root: &str) -> Config {
 }
 
 /// Exécute toutes les règles sur les fichiers concernés. Retourne tous les findings.
+// rules::all() yields Box<dyn Rule>, so find() borrows a &Box<dyn Rule>: the explicit
+// closure type trips clippy::borrowed_box, but dereferencing to &dyn Rule in the
+// signature would not match find's bound.
+#[allow(clippy::borrowed_box)]
 pub fn run(root: &str, cfg: &Config, base: &str, refr: &str, mode: &Mode) -> (Vec<Finding>, usize) {
     let added = added_lines(root, base, refr);
     let files: Vec<String> = match mode {
@@ -133,7 +137,7 @@ pub fn run(root: &str, cfg: &Config, base: &str, refr: &str, mode: &Mode) -> (Ve
     let mut findings = Vec::new();
     for path in &files {
         for p in &cfg.pattern {
-            if !scope_match(&p.scope, path) || p.exclude_files.iter().any(|e| e == path) {
+            if !scope_match(&p.scope, path) || p.exclude_files.iter().any(|e: &String| e == path) {
                 continue;
             }
             if let Mode::Audit(id) = mode {
@@ -152,12 +156,17 @@ pub fn run(root: &str, cfg: &Config, base: &str, refr: &str, mode: &Mode) -> (Ve
                 Ok(a) => a,
                 Err(_) => continue,
             };
-            let rule = rules::all().into_iter().find(|r| r.id() == p.id);
+            let rule = rules::all()
+                .into_iter()
+                .find(|r: &Box<dyn rules::Rule>| r.id() == p.id);
             let Some(rule) = rule else { continue };
             for Candidate { line, violation } in rule.candidates(&ast, &src) {
                 let in_diff = match mode {
                     Mode::All | Mode::Audit(_) | Mode::Watch => true,
-                    Mode::Diff => added.get(path).map(|s| s.contains(&line)).unwrap_or(false),
+                    Mode::Diff => added
+                        .get(path)
+                        .map(|s: &HashSet<usize>| s.contains(&line))
+                        .unwrap_or(false),
                 };
                 let emit_violation = violation && in_diff;
                 let emit = match mode {
@@ -169,10 +178,10 @@ pub fn run(root: &str, cfg: &Config, base: &str, refr: &str, mode: &Mode) -> (Ve
                 // finding ou celle juste au-dessus (voir review-memory-owner)
                 let marker = format!("review: ignore {}", p.id);
                 let ignored = violation
-                    && (line.saturating_sub(2)..line).any(|idx| {
+                    && (line.saturating_sub(2)..line).any(|idx: usize| {
                         src.lines()
                             .nth(idx)
-                            .map(|l| l.contains(&marker))
+                            .map(|l: &str| l.contains(&marker))
                             .unwrap_or(false)
                     });
                 if emit && !ignored {

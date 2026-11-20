@@ -2,6 +2,7 @@
 //! (violation/conforme). L'enregistrement est factorisé ici : ajouter une règle =
 //! un fichier dans `rules/` + une ligne dans `all()`.
 
+pub mod closure_params_typed;
 pub mod delegate_same_name;
 pub mod duplicate_fn_bodies;
 pub mod file_sections;
@@ -9,6 +10,7 @@ pub mod helper_in_fn;
 pub mod main_rs_thin;
 pub mod manual_serde_impl;
 pub mod newtype_pub;
+pub mod serde_redundant_attr;
 pub mod thematic_clusters;
 
 use syn::spanned::Spanned;
@@ -31,6 +33,8 @@ pub trait Rule {
 /// Registre unique des règles.
 pub fn all() -> Vec<Box<dyn Rule>> {
     vec![
+        Box::new(closure_params_typed::ClosureParamsTyped),
+        Box::new(serde_redundant_attr::SerdeRedundantAttr),
         Box::new(newtype_pub::NewtypePub),
         Box::new(helper_in_fn::HelperInFn),
         Box::new(manual_serde_impl::ManualSerdeImpl),
@@ -56,29 +60,29 @@ pub fn is_section_banner(l: &str) -> bool {
 }
 
 pub fn structs(ast: &syn::File) -> impl Iterator<Item = &ItemStruct> {
-    ast.items.iter().filter_map(|i| match i {
+    ast.items.iter().filter_map(|i: &Item| match i {
         Item::Struct(s) => Some(s),
         _ => None,
     })
 }
 
 pub fn fns(ast: &syn::File) -> impl Iterator<Item = &ItemFn> {
-    ast.items.iter().filter_map(|i| match i {
+    ast.items.iter().filter_map(|i: &Item| match i {
         Item::Fn(f) => Some(f),
         _ => None,
     })
 }
 
 pub fn impls(ast: &syn::File) -> impl Iterator<Item = &ItemImpl> {
-    ast.items.iter().filter_map(|i| match i {
+    ast.items.iter().filter_map(|i: &Item| match i {
         Item::Impl(imp) => Some(imp),
         _ => None,
     })
 }
 
 pub fn impl_methods(ast: &syn::File) -> impl Iterator<Item = &syn::ImplItemFn> {
-    impls(ast).flat_map(|imp| {
-        imp.items.iter().filter_map(|s| match s {
+    impls(ast).flat_map(|imp: &ItemImpl| {
+        imp.items.iter().filter_map(|s: &ImplItem| match s {
             ImplItem::Fn(m) => Some(m),
             _ => None,
         })
@@ -93,8 +97,8 @@ mod tests {
         let ast = syn::parse_file(src).unwrap();
         rule.candidates(&ast, src)
             .into_iter()
-            .filter(|c| c.violation)
-            .map(|c| c.line)
+            .filter(|c: &Candidate| c.violation)
+            .map(|c: Candidate| c.line)
             .collect()
     }
 
@@ -169,7 +173,7 @@ impl AttributeList {
     fn file_sections_flags_big_file_without_banners() {
         let r = file_sections::FileSections;
         let big = (0..12)
-            .map(|i| format!("fn f{i}() {{}}"))
+            .map(|i: i32| format!("fn f{i}() {{}}"))
             .collect::<Vec<_>>()
             .join("\n");
         assert_eq!(violations(&r, &big).len(), 1);
@@ -219,6 +223,124 @@ impl L {
         // conforme : CLI mince (mod + fn main uniquement)
         let ok = "mod checker;\nfn main() {}\n";
         assert!(violations(&r, ok).is_empty());
+    }
+
+    #[test]
+    fn closure_params_typed_flags_untyped_params() {
+        let r = closure_params_typed::ClosureParamsTyped;
+        // untyped param -> violation at the closure line
+        assert_eq!(violations(&r, "fn f() { let g = |a| a + 1; }"), vec![1]);
+        assert_eq!(
+            violations(&r, "fn f(xs: &[i32]) { xs.iter().find(|a| *a == 1); }"),
+            vec![1]
+        );
+        // typed param -> compliant
+        assert!(violations(&r, "fn f() { let g = |a: i32| a + 1; }").is_empty());
+        assert!(violations(
+            &r,
+            "fn f(xs: &[i32]) { xs.iter().find(|a: &&i32| **a == 1); }"
+        )
+        .is_empty());
+        // wildcard -> compliant (nothing to type)
+        assert!(violations(&r, "fn f() { let g = |_| 1; }").is_empty());
+        // no params -> no candidate
+        assert!(violations(&r, "fn f() { let g = || 1; }").is_empty());
+        // tuple pattern must be typed as a whole
+        assert_eq!(
+            violations(
+                &r,
+                "fn f(pairs: &[(i32, i32)]) { pairs.iter().find(|(k, _)| *k == 1); }"
+            ),
+            vec![1]
+        );
+        assert!(violations(
+            &r,
+            "fn f(pairs: &[(i32, i32)]) { pairs.iter().find(|(k, _): &(i32, i32)| k == &1); }"
+        )
+        .is_empty());
+    }
+
+    #[test]
+    fn rename_rule_matches_serde_outputs() {
+        use serde_redundant_attr::RenameRule;
+        let cc = RenameRule::parse("camelCase").unwrap();
+        assert_eq!(cc.apply_to_field("resource_url"), "resourceUrl");
+        assert_eq!(cc.apply_to_field("type"), "type");
+        assert_eq!(cc.apply_to_field("last_mod_seq"), "lastModSeq");
+        assert_eq!(cc.apply_to_variant("DeletedObject"), "deletedObject");
+        assert_eq!(cc.apply_to_variant("ResetBox"), "resetBox");
+        assert_eq!(RenameRule::parse("verbatim"), None);
+    }
+
+    #[test]
+    fn serde_redundant_attr_flags_rename_alias_default() {
+        let r = serde_redundant_attr::SerdeRedundantAttr;
+        // rename == camelCase(name) and alias == name are redundant; the wire-acronym
+        // rename "resourceURL" differs from camelCase("resource_url") = "resourceUrl"
+        // and must NOT be flagged.
+        let src = r#"
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct S {
+    #[serde(rename = "name", alias = "name")]
+    name: String,
+    /// Wire name "resourceURL" (spec acronym; camelCase would give "resourceUrl").
+    #[serde(rename = "resourceURL")]
+    resource_url: String,
+}
+"#;
+        assert_eq!(
+            violations(&r, src).len(),
+            2,
+            "rename+alias on 'name' flagged, resourceURL not"
+        );
+        // identity rename without rename_all is redundant too
+        let src_id = "#[derive(Serialize)] struct S2 { #[serde(rename = \"x\")] x: u32 }";
+        assert_eq!(violations(&r, src_id).len(), 1);
+        // container default makes a bare field default dead
+        let src_def =
+            "#[derive(Serialize, Default)] #[serde(default)] struct T { #[serde(default)] x: u32 }";
+        assert_eq!(violations(&r, src_def).len(), 1);
+        // no container default -> field default is meaningful
+        let src_nodef = "#[derive(Serialize)] struct U { #[serde(default)] x: u32 }";
+        assert!(violations(&r, src_nodef).is_empty());
+        // enum variant rename equal to rename_all(variant) is redundant
+        let src_enum = r#"
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+enum E {
+    #[serde(rename = "resetBox")]
+    ResetBox,
+    #[serde(rename = "other")]
+    OtherThing,
+}
+"#;
+        assert_eq!(
+            violations(&r, src_enum).len(),
+            2,
+            "ResetBox: rename == camelCase(variant) -> redundant (rule A); OtherThing: rename != camelCase and no doc -> undocumented (rule D)"
+        );
+        // rule D: a load-bearing rename (differs from rename_all output) needs a ///
+        // comment on the member; a redundant one is flagged regardless of the doc
+        let src_doc = r#"
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct W {
+    #[serde(rename = "resourceURL")] // wire "resourceURL": spec caps acronym, not camelCase "resourceUrl"
+    resource_url: String,
+    /// Wire name "notifyURL" (spec acronym; camelCase would give "notifyUrl").
+    #[serde(rename = "notifyURL")]
+    notify_url: String,
+    #[serde(rename = "callbackURL")]
+    callback_url: String,
+}
+"#;
+        let v = violations(&r, src_doc);
+        assert_eq!(
+            v.len(),
+            1,
+            "trailing-comment and /// renames ok, undocumented callbackURL flagged: {v:?}"
+        );
     }
 
     #[test]
