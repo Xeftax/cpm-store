@@ -86,6 +86,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      # check-language.py has a `uv run --script` shebang: uv and python must be installed
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
       - run: >-
           scripts/ci/check-language.py --check
           "${{ github.event.pull_request.base.sha || 'origin/main' }}"
@@ -98,6 +103,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      # review-owners.py has a `uv run --script` shebang: uv and python must be installed
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
       - run: >-
           scripts/ci/review-owners.py --check
           "${{ github.event.pull_request.base.sha || 'origin/main' }}"
