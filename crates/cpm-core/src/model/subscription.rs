@@ -67,7 +67,7 @@ pub struct NmsSubscription {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct NmsSubscriptionList {
-    #[serde(default, deserialize_with = "super::one_or_many")]
+    #[serde(deserialize_with = "super::one_or_many")]
     pub subscription: Vec<NmsSubscription>,
     #[serde(rename = "resourceURL", skip_serializing_if = "Option::is_none")]
     pub resource_url: Option<String>,

@@ -109,7 +109,6 @@ pub struct SelectionCriteria {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub from_cursor: Option<String>,
     /// Maximum number of entries to return (mandatory, REST-NMS §5.3.2.17).
-    #[serde(default)]
     pub max_entries: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub search_criteria: Option<SearchCriteria>,
@@ -117,7 +116,6 @@ pub struct SelectionCriteria {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub search_scope: Option<Reference>,
     #[serde(
-        default,
         skip_serializing_if = "Option::is_none",
         deserialize_with = "super::de_bool_or_str"
     )]
@@ -125,7 +123,6 @@ pub struct SelectionCriteria {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sort_criteria: Option<SortCriteria>,
     #[serde(
-        default,
         skip_serializing_if = "Option::is_none",
         deserialize_with = "super::de_bool_or_str"
     )]
@@ -287,7 +284,6 @@ impl<'de> Deserialize<'de> for RequestError {
 #[serde(rename_all = "camelCase", default)]
 pub struct BulkResponseList {
     #[serde(
-        default,
         skip_serializing_if = "Option::is_none",
         deserialize_with = "super::de_bool_or_str"
     )]

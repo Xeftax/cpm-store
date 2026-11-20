@@ -106,20 +106,14 @@ pub struct ResetBox;
 /// `NmsEvent` — REST-NMS §5.3.2.25. XSD "choice": exactly one variant.
 /// Serialized as an externally tagged object, e.g. `{"changedObject": {...}}`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum NmsEvent {
-    #[serde(rename = "deletedObject")]
     DeletedObject(DeletedObject),
-    #[serde(rename = "deletedFolder")]
     DeletedFolder(DeletedFolder),
-    #[serde(rename = "expiredObject")]
     ExpiredObject(DeletedObject),
-    #[serde(rename = "expiredFolder")]
     ExpiredFolder(DeletedFolder),
-    #[serde(rename = "changedObject")]
     ChangedObject(ChangedObject),
-    #[serde(rename = "changedFolder")]
     ChangedFolder(ChangedFolder),
-    #[serde(rename = "resetBox")]
     ResetBox(ResetBox),
 }
 
@@ -129,13 +123,12 @@ pub enum NmsEvent {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct NmsEventList {
-    #[serde(default, deserialize_with = "super::one_or_many")]
+    #[serde(deserialize_with = "super::one_or_many")]
     pub nms_event: Vec<NmsEvent>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub callback_data: Option<String>,
     /// Index of this notification list in the subscription (REST-NMS §5.1.4.5).
     #[serde(
-        default,
         skip_serializing_if = "Option::is_none",
         deserialize_with = "super::de_u64_or_str"
     )]

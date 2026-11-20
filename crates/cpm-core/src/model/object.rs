@@ -35,7 +35,6 @@ pub struct PayloadPartInfo {
     /// MIME content type of the stored content.
     pub content_type: String,
     #[serde(
-        default,
         skip_serializing_if = "Option::is_none",
         deserialize_with = "super::de_u64_or_str"
     )]
@@ -97,7 +96,6 @@ pub struct NmsObject {
     pub payload_part: Vec<PayloadPartInfo>,
     /// Last mod-sequence value (strict sync, REST-NMS §5.1.4.4; spec §5.4).
     #[serde(
-        default,
         skip_serializing_if = "Option::is_none",
         deserialize_with = "super::de_u64_or_str"
     )]
@@ -137,7 +135,7 @@ pub struct ObjectEnvelope {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ObjectList {
-    #[serde(default, deserialize_with = "super::one_or_many")]
+    #[serde(deserialize_with = "super::one_or_many")]
     pub object: Vec<NmsObject>,
     /// Present when more objects are available (REST-NMS §5.1.11).
     #[serde(skip_serializing_if = "Option::is_none")]
