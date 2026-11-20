@@ -188,4 +188,4 @@ jobs:
         # keeps reviewdog informational too: annotations on PR lines, never a red job.
         run: >
           tools/review-check/target/release/review-check origin/main --format=gcc
-          | reviewdog -f=gcc -filter-mode=diff -reporter=github-pr-review -fail-on-error=false
+          | reviewdog -efm '%f:%l:%c: %m' -filter-mode=added -reporter=github-pr-review -fail-on-error=false
