@@ -52,6 +52,8 @@ EXCLUDED = [
     "**/target/**",
     # the detector itself lists the French words it matches
     "scripts/ci/check-language.py",
+    # codespell's ignore list exists precisely to name French words in the docs
+    ".codespell-ignore",
 ]
 EXIT_USAGE = 2
 # unified-diff hunk header `@@ -a,b +c,d @@` has three space-separated fields before the
