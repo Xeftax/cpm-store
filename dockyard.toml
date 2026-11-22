@@ -48,6 +48,9 @@ required-checks = [
   "msrv (rust-version du workspace)",
   "security (cargo-deny, licences + advisories)",
   "secret scan (gitleaks, binaire vérifié par le script)",
+  "commit-hygiene (no hook bypass in commits)",
+  "language (English-only added lines)",
+  "review-required (>=1 commit with a Reviewed-By trailer)",
 ]
 required-reviews = 0
 code-owner-reviews = false

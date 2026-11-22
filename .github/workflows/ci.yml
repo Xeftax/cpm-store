@@ -65,6 +65,67 @@ jobs:
       - run: cargo install cargo-deny --locked
       - run: scripts/ci/security-rust.sh
 
+  commit-hygiene:
+    name: commit-hygiene (no hook bypass in commits)
+    runs-on: ubuntu-latest
+    steps:
+      # full history: the scan covers the commit messages of the whole PR range
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: >-
+          scripts/ci/check-commit-hygiene.sh
+          "${{ github.event.pull_request.base.sha || 'origin/main' }}"
+          "${{ github.event.pull_request.head.sha || 'HEAD' }}"
+
+  language:
+    name: language (English-only added lines)
+    runs-on: ubuntu-latest
+    steps:
+      # full history: the scan covers the added lines of the whole PR range
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # check-language.py has a `uv run --script` shebang: uv and python must be installed
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+      - run: >-
+          scripts/ci/check-language.py --check
+          "${{ github.event.pull_request.base.sha || 'origin/main' }}"
+          "${{ github.event.pull_request.head.sha || 'HEAD' }}"
+
+  review-owners:
+    name: review-owners (owners triggered by the diff, informational)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # review-owners.py has a `uv run --script` shebang: uv and python must be installed
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+      - run: >-
+          scripts/ci/review-owners.py --check
+          "${{ github.event.pull_request.base.sha || 'origin/main' }}"
+          "${{ github.event.pull_request.head.sha || 'HEAD' }}"
+
+  review-required:
+    name: review-required (>=1 commit with a Reviewed-By trailer)
+    runs-on: ubuntu-latest
+    steps:
+      # full history: the scan covers the commit messages of the whole PR range
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: >-
+          scripts/ci/check-review-commit.sh
+          "${{ github.event.pull_request.base.sha || 'origin/main' }}"
+          "${{ github.event.pull_request.head.sha || 'HEAD' }}"
+
   gitleaks:
     name: secret scan (gitleaks, binaire vérifié par le script)
     runs-on: ubuntu-latest
