@@ -33,7 +33,7 @@ comment = "Personal solo repo: the whole repository belongs to Xeftax."
 
 # Level A (platform). Differs from the dockyard standard on three points, because the
 # personal solo repo (Xeftax) has self-contained CI:
-# - required-checks = the 6 jobs of .github/workflows/ci.yml (no dockyard "verdict" job);
+# - required-checks = the 9 required jobs of .github/workflows/ci.yml (no dockyard "verdict" job);
 # - required-reviews = 0 and code-owner-reviews = false (single contributor: GitHub
 #   forbids self-approval, so requiring a code-owner review would block everything);
 # - merge-queue = false (org standard; useless solo).
