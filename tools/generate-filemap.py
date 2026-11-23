@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Génère docs/TREE.md — AUTO-GÉNÉRÉ, ne jamais éditer à la main.
+"""Generates docs/TREE.md -- AUTO-GENERATED, never edit by hand.
 
-Pour changer une description : corriger le `//!` du fichier source, puis relancer :
+To change a description: fix the source file's `//!` header, then rerun:
     python3 tools/generate-filemap.py
 
-Porté du TREE de tetrixx-tools (doc-station) adapté à Rust : la "docstring de module"
-d'un fichier .rs est son header `//!`. Format : arbre indenté par dossier, une section par
-langage, descriptions alignées en colonne.
+Ported from the tetrixx-tools (doc-station) TREE, adapted to Rust: a .rs file's
+"module docstring" is its `//!` header. Format: tree indented per directory, one
+section per language, descriptions aligned in a column.
 """
 
 import datetime
@@ -15,16 +15,16 @@ import shutil
 import subprocess
 from typing import Any
 
-# /usr/bin/env en littéral inline : S603/S607 n'acceptent que des exécutables littéraux.
+# /usr/bin/env as an inline literal: S603/S607 only accept literal executables.
 if shutil.which("git") is None:
-    raise SystemExit("git introuvable sur le PATH")
+    raise SystemExit("git not found on the PATH")
 
 ROOT = pathlib.Path(
     subprocess.check_output(["/usr/bin/env", "git", "rev-parse", "--show-toplevel"], text=True).strip()
 )
 OUT = ROOT / "docs" / "TREE.md"
 
-# (titre de section, glob, marqueur de docstring de module)
+# (section title, glob, module docstring marker)
 SECTIONS = [
     ("Rust", "*.rs", "//!"),
     ("Python", "*.py", '"""'),
@@ -34,7 +34,7 @@ SECTIONS = [
 
 
 def first_doc_line(path: pathlib.Path, marker: str) -> str:
-    """Première ligne du header de module (après `marker`), ou chaîne vide."""
+    """First line of the module header (after `marker`), or empty string."""
     try:
         with path.open(encoding="utf-8", errors="replace") as f:
             for raw_line in f:
@@ -45,26 +45,26 @@ def first_doc_line(path: pathlib.Path, marker: str) -> str:
                         rest = rest.removesuffix('"""').strip()
                     return rest
                 if line.strip() and not line.startswith(marker):
-                    return ""  # le header ne commence pas par le marqueur
+                    return ""  # the header does not start with the marker
     except OSError:
         return ""
     return ""
 
 
 def build_tree(paths: list[str]) -> dict[str, Any]:
-    """Construit l'arbre imbriqué {dossier: {...}, fichier: None} depuis des chemins plats."""
+    """Build the nested tree {dir: {...}, file: None} from flat paths."""
     tree: dict[str, Any] = {}
     for p in paths:
         parts = p.split("/")
         node = tree
         for part in parts[:-1]:
             node = node.setdefault(part, {})
-        node[parts[-1]] = None  # feuille = fichier
+        node[parts[-1]] = None  # leaf = file
     return tree
 
 
 def render(node: dict[str, Any], prefix: str, lines: list[str], width: int) -> None:
-    """Aplati l'arbre en lignes indentées, dossiers d'abord, descriptions en colonne."""
+    """Flattens the tree into indented lines, directories first, descriptions in a column."""
     dirs = sorted(k for k, v in node.items() if isinstance(v, dict))
     files = sorted(k for k, v in node.items() if not isinstance(v, dict))
     for d in dirs:
@@ -76,7 +76,7 @@ def render(node: dict[str, Any], prefix: str, lines: list[str], width: int) -> N
 
 
 def annotate(node: dict[str, Any], prefix: str, marker: str) -> None:
-    """Remplit chaque feuille de l'arbre avec la première ligne de doc du fichier."""
+    """Fill each tree leaf with the file's first doc line."""
     for k, v in list(node.items()):
         if isinstance(v, dict):
             annotate(v, prefix + k + "/", marker)
@@ -85,10 +85,10 @@ def annotate(node: dict[str, Any], prefix: str, marker: str) -> None:
 
 
 def main() -> None:
-    """Régénère docs/TREE.md depuis `git ls-files` et les headers de chaque fichier."""
+    """Regenerates docs/TREE.md from `git ls-files` and each file's header."""
     all_files = subprocess.check_output(["/usr/bin/env", "git", "ls-files"], text=True, cwd=ROOT).splitlines()
-    # .vibe/ exclu : les skills/hooks sont déjà découverts par le harness (skill_paths),
-    # TREE.md ne liste que le code et la doc du repo.
+    # .vibe/ excluded: skills/hooks are already discovered by the harness (skill_paths);
+    # TREE.md only lists the repo's code and docs.
     all_files = [f for f in all_files if f != "docs/TREE.md" and not f.startswith(".vibe/")]
 
     lines = [
@@ -117,14 +117,14 @@ def main() -> None:
     lines.insert(5, "")
     OUT.parent.mkdir(exist_ok=True)
     OUT.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    # Le TREE.md commité doit être mdformat-clean, sinon le check format-markdown
-    # échoue à chaque régénération. mdformat tourne via le venv uv du projet.
+    # The committed TREE.md must be mdformat-clean, otherwise the format-markdown
+    # check fails on every regeneration. mdformat runs via the project's uv venv.
     subprocess.run(
         ["/usr/bin/env", "uv", "run", "--no-sync", "mdformat", "docs/TREE.md"],
         check=True,
         cwd=ROOT,
     )
-    print(f"TREE régénéré : {OUT} ({len(all_files)} fichiers)")
+    print(f"TREE regenerated: {OUT} ({len(all_files)} files)")
 
 
 if __name__ == "__main__":

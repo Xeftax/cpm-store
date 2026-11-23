@@ -1,9 +1,9 @@
-# docs/ — documentation du repo
+# docs/ — repository documentation
 
-- `specs/` + `specs.md` : specs OMA normatives (CPM-REST, REST-NMS, REST_NetAPI_Common).
-  Toute règle métier citée dans le code renvoie à une section de ces specs.
-- `adr/` : ADR du repo. `0001-review-known-patterns.md` = mémoire de review (known-patterns).
-- `TREE.md` : **auto-généré** par `tools/generate-filemap.py` — ne jamais l'éditer à la main.
-  Pour changer une description : corriger le `//!` du fichier source, puis relancer le script.
-- `conformance.md` : checklist des SCR client (annexe B CPM-REST).
-- `architecture.md`, `roadmap.md`, `direction.md` : vision et trajectoire.
+- `specs/` + `specs.md`: normative OMA specs (CPM-REST, REST-NMS, REST_NetAPI_Common).
+  Any business rule cited in the code refers to a section of these specs.
+- `adr/`: repository ADRs. `0001-review-known-patterns.md` = review memory (known-patterns).
+- `TREE.md`: **auto-generated** by `tools/generate-filemap.py` — never edit it by hand.
+  To change a description: fix the `//!` of the source file, then rerun the script.
+- `conformance.md`: checklist of client SCRs (CPM-REST annex B).
+- `architecture.md`, `roadmap.md`, `direction.md`: vision and trajectory.

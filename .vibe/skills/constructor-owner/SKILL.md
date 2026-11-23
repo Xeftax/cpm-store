@@ -1,55 +1,55 @@
 ---
 name: constructor-owner
-description: "OWNER signatures des constructeurs et fonctions publiques de cpm-core (new, impl Into<...> vs type concret, Vec<T> vs impl IntoIterator). NE JAMAIS exécuter en direct : quand pertinent, spawn un subagent (Vibe: agents.spawn, instructions = ce fichier). Trigger when writing/changing a `pub fn new(...)` or any public fn signature in crates/cpm-core/**. MUST BE USED before/after any PR changing a public constructor signature."
+description: "OWNER of constructor and public function signatures in cpm-core (new, impl Into<...> vs concrete type, Vec<T> vs impl IntoIterator). NEVER run inline: when relevant, spawn a subagent (Vibe: agents.spawn, instructions = this file). Trigger when writing/changing a `pub fn new(...)` or any public fn signature in crates/cpm-core/**. MUST BE USED before/after any PR changing a public constructor signature."
 user-invocable: false
 ---
 
 # constructor-owner
 
-Owner du domaine « signatures publiques / constructeurs » (cpm-core). Cas d'école : PR #3,
+Owner of the "public signatures / constructors" domain (cpm-core). Reference case: PR #3,
 `Attribute::new(name: impl Into<String>, value: Vec<String>)` (`attribute.rs:40`).
 
-## Rôle dual
+## Dual role
 
-- **Advise BEFORE** : « quelle signature pour ce constructeur » → la règle des call sites.
-- **Review AFTER** : verdict contre les invariants.
+- **Advise BEFORE**: "which signature for this constructor" -> follow the call-site rule.
+- **Review AFTER**: verdict against the invariants.
 
-## Read first (à chaque invocation, jamais de mémoire)
+## Read first (on every invocation, never from memory)
 
 - `crates/cpm-core/src/model/attribute.rs` (`Attribute::new`, `AttributeList::new`)
-- Tous les call sites : `git grep "Attribute::new"` / `git grep "::new("` dans la branche
+- All the call sites: `git grep "Attribute::new"` / `git grep "::new("` on the branch
 
 ## Invariants — Do & Don't
 
-- DO `name: impl Into<String>` quand les call sites passent des `&str` (littéraux) : évite un
-  `.to_string()` à chaque appel, coût nul car la struct possède la donnée de toute façon.
-  Preuve PR #3 : tous les appels sont `Attribute::new("Subject", ...)`.
-- DON'T généraliser une collection en `impl IntoIterator<Item = impl Into<String>>` « au cas où » :
-  si les call sites passent déjà un `Vec<String>`, garder `Vec<String>` tel quel — c'est un
-  `move` sans copie, alors que `collect()` copierait chaque élément — et la signature publique
-  reste lisible (c'est l'API vue par tous les lecteurs).
-- Règle méta : **décider la signature en greppant les call sites réels**, pas par principe.
-  « Le plus permissif possible » n'est pas mieux : on élargit l'API quand un besoin concret
-  apparaît (YAGNI), au call site (`.iter().map(...).collect()`) ou via un constructeur nommé dédié.
-- DO retourner `Self` et utiliser le raccourci de champ (`value,` pour `value: value`).
+- DO use `name: impl Into<String>` when the call sites pass `&str` (literals): avoids a
+  `.to_string()` at every call, zero cost since the struct owns the data anyway.
+  Proof from PR #3: every call is `Attribute::new("Subject", ...)`.
+- DON'T generalize a collection into `impl IntoIterator<Item = impl Into<String>>` "just in
+  case": if the call sites already pass a `Vec<String>`, keep `Vec<String>` as-is — it is a
+  `move` with no copy, whereas `collect()` would copy every element — and the public
+  signature stays readable (it is the API every reader sees).
+- Meta rule: **decide the signature by grepping the real call sites**, not on principle.
+  "As permissive as possible" is not better: widen the API when a concrete need appears
+  (YAGNI), at the call site (`.iter().map(...).collect()`) or via a dedicated named constructor.
+- DO return `Self` and use the field shorthand (`value,` for `value: value`).
 
-### constructeurs multiples : `new` n'est pas magique
+### multiple constructors: `new` is not magic
 
-- `X(...)` n'est **pas une fonction** : c'est la syntaxe de construction de la struct, réservée
-  aux tuple structs, et il n'y en a qu'une par struct (`error[E0423]` sinon — prouvé ex19).
-  On ne peut donc PAS définir plusieurs « constructeurs tuple ».
+- `X(...)` is **not a function**: it is the struct construction syntax, reserved for
+  tuple structs, and there is only one per struct (`error[E0423]` otherwise — proven ex19).
+  You therefore CANNOT define several "tuple constructors".
 
-- En revanche les **fonctions associées** sont libres d'être plusieurs : `new(v)` (constructeur
-  principal), `empty()` / `Default` (valeur vide), et le trait `From<Vec<T>>` pour le `.into()`.
+- By contrast, **associated functions** are free to be multiple: `new(v)` (the main
+  constructor), `empty()` / `Default` (empty value), and the `From<Vec<T>>` trait for `.into()`.
 
-- DO faire déléguer `new` à `From::from` — un seul endroit construit la valeur (prouvé ex18 :
-  `new` + `from` + `.into()` + `empty()` coexistent).
+- DO make `new` delegate to `From::from` — one single place constructs the value
+  (proven ex18: `new` + `from` + `.into()` + `empty()` coexist).
 
-- DO garder `new` même s'il ne fait que déléguer à `From` : `new` = convention de nommage
-  (discoverable, tout le monde le cherche), `From` = conversion `.into()` / génériques
-  `impl Into<...>`. Deux rôles différents, 3 lignes. Les deux coexistent quand l'argument de
-  `new` est le contenu canonique de la struct (ex. `Vec<Attribute>`) ; ne mettre que `new`
-  si `From` n'a pas de sens sémantique.
+- DO keep `new` even when it only delegates to `From`: `new` is a naming convention
+  (discoverable, everyone looks for it), `From` is the `.into()` conversion / generic
+  `impl Into<...>`. Two different roles, 3 lines. Both coexist when `new`'s argument is the
+  canonical content of the struct (e.g. `Vec<Attribute>`); provide only `new` if
+  `From` has no semantic meaning.
 
-- Citer `file:line` lus pendant cette invocation. Verdict en deux parties : **prouvé**
-  (commande + sortie) / **non prouvé** (et pourquoi).
+- Cite the `file:line` read during this invocation. Two-part verdict: **proven**
+  (command + output) / **not proven** (and why).

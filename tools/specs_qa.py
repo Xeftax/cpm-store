@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-"""QA de fidélité des copies markdown des specs OMA contre les PDF officiels.
+"""Fidelity QA of the OMA spec markdown copies against the official PDFs.
 
-Pour chaque spec : extrait le texte du PDF avec `pdftotext`, normalise (minuscules,
-non-alphanum supprimé — tolère retours à la ligne, césures, casse), puis vérifie :
-1. les chaînes normatives clés (identifiants SCR, tokens, URLs d'exemple, sections)
-   sont présentes dans le PDF ET dans le markdown ;
-2. un échantillon aléatoire de phrases du PDF retrouve un match dans le markdown
-   (couverture de phrases).
+For each spec: extract the PDF text with `pdftotext`, normalize (lowercase,
+non-alphanumerics stripped -- tolerant to line breaks, hyphenation, case), then check:
+1. the key normative strings (SCR identifiers, tokens, sample URLs, sections)
+   are present in BOTH the PDF and the markdown;
+2. a random sample of PDF sentences finds a match in the markdown
+   (sentence coverage).
 
-Usage :
+Usage:
     python3 tools/specs_qa.py --pdf-dir /tmp/cpm-research/pdf --md-dir docs/specs --out reports/specs-qa.json
 
-Note : cette QA détecte les OMISSIONS. Elle ne détecte pas les ajouts ni les tableaux
-aplatis par une conversion — pour les annexes normatives (SCR annexe B, exemples
-MIME C–H), extraire directement depuis le PDF (pdftotext). Le PDF reste l'autorité
-normative.
+Note: this QA detects OMISSIONS. It does not detect additions nor tables
+flattened by a conversion -- for the normative annexes (SCR appendix B, MIME
+C-H samples), extract directly from the PDF (pdftotext). The PDF remains the
+normative authority.
 """
 
 import argparse
@@ -99,24 +99,24 @@ MIN_SENTENCE_LEN = 40
 
 
 def norm_hard(s: str) -> str:
-    """Normalise une chaîne pour comparaison : minuscules, non-alphanum supprimé."""
+    """Normalize a string for comparison: lowercase, non-alphanumerics stripped."""
     return re.sub(r"[^a-z0-9]+", "", s.lower())
 
 
 def sentences(text: str) -> list[str]:
-    """Découpe un texte en phrases de plus de MIN_SENTENCE_LEN caractères."""
+    """Split a text into sentences longer than MIN_SENTENCE_LEN characters."""
     text = re.sub(r"\s+", " ", text)
     return [s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if len(s.strip()) > MIN_SENTENCE_LEN]
 
 
 def pdf_text(pdf: Path) -> str:
-    """Extrait le texte brut d'un PDF avec pdftotext (PDF en stdin, texte en stdout).
+    """Extract the raw text of a PDF with pdftotext (PDF on stdin, text on stdout).
 
-    L'exécutable est résolu via le PATH par /usr/bin/env : argv ne contient que des
-    littéraux (un chemin résolu en variable serait un input non littéral pour S603).
+    The executable is resolved via the PATH by /usr/bin/env: argv contains only
+    literals (a variable-resolved path would be a non-literal input for S603).
     """
     if shutil.which("pdftotext") is None:
-        raise RuntimeError("pdftotext introuvable dans le PATH (poppler-utils requis)")
+        raise RuntimeError("pdftotext not found on the PATH (poppler-utils required)")
     r = subprocess.run(
         ["/usr/bin/env", "pdftotext", "-", "-"],
         input=pdf.read_bytes(),
@@ -128,17 +128,17 @@ def pdf_text(pdf: Path) -> str:
 
 
 def run(pdf_dir: Path, md_dir: Path, out: Path | None, sample: int) -> int:
-    """Compare chaque spec PDF/markdown ; écrit le rapport JSON si `out`. Retourne 0."""
+    """Compare each PDF/markdown spec; write the JSON report if `out`. Return 0."""
     random.seed(42)
     report: dict[str, dict[str, Any]] = {}
     for spec, keys in KEY_STRINGS.items():
         pdf = pdf_dir / (spec + ".pdf")
         md = md_dir / (spec + ".md")
         if not pdf.exists():
-            report[spec] = {"error": f"PDF manquant: {pdf}"}
+            report[spec] = {"error": f"missing PDF: {pdf}"}
             continue
         if not md.exists():
-            report[spec] = {"error": f"markdown manquant: {md}"}
+            report[spec] = {"error": f"missing markdown: {md}"}
             continue
         try:
             pdf_raw = pdf_text(pdf)
@@ -165,9 +165,9 @@ def run(pdf_dir: Path, md_dir: Path, out: Path | None, sample: int) -> int:
         }
         r = report[spec]
         print(
-            f"{spec}: clés {r['keys']}  couverture phrases {r['sentence_coverage']}"
+            f"{spec}: keys {r['keys']}  sentence coverage {r['sentence_coverage']}"
             + (f"  PDF-only={key_pdf_only}" if key_pdf_only else "")
-            + (f"  MD-only(ajouts!)={key_md_only}" if key_md_only else "")
+            + (f"  MD-only(additions!)={key_md_only}" if key_md_only else "")
         )
 
     if out:
@@ -178,17 +178,17 @@ def run(pdf_dir: Path, md_dir: Path, out: Path | None, sample: int) -> int:
             ),
             encoding="utf-8",
         )
-        print(f"rapport: {out}")
+        print(f"report: {out}")
     return 0
 
 
 def main() -> int:
-    """Point d'entrée CLI : parse les arguments puis lance la QA."""
+    """CLI entry point: parse the arguments then run the QA."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--pdf-dir", required=True)
     ap.add_argument("--md-dir", default="docs/specs")
-    ap.add_argument("--out", default=None, help="écrit un rapport JSON ici")
-    ap.add_argument("--sample", type=int, default=300, help="nb de phrases échantillonnées par spec")
+    ap.add_argument("--out", default=None, help="writes a JSON report here")
+    ap.add_argument("--sample", type=int, default=300, help="number of sampled sentences per spec")
     args = ap.parse_args()
     return run(Path(args.pdf_dir), Path(args.md_dir), Path(args.out) if args.out else None, args.sample)
 

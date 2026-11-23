@@ -1,26 +1,26 @@
 #!/usr/bin/env python3
-"""Rapport d'usage Vibe / modèles Mistral pour ce projet (monitoring 100%).
+"""Vibe / Mistral model usage report for this project (100% monitoring).
 
-Sources (VIBE_HOME, défaut ~/.vibe) :
-- logs/session/session_*/meta.json        -> stats session (tokens, coût USD), start/end, cwd
-- logs/session/unified/*/meta.json        -> config de session (active_model, modèles, prix)
-- logs/session/unified/*/journal/*.jsonl  -> usage par appel LLM (payload.result.result.usage)
-                                             (pas de champ "model" par appel : on attribue
-                                             chaque appel au active_model de la session)
+Sources (VIBE_HOME, default ~/.vibe):
+- logs/session/session_*/meta.json        -> session stats (tokens, USD cost), start/end, cwd
+- logs/session/unified/*/meta.json        -> session config (active_model, models, prices)
+- logs/session/unified/*/journal/*.jsonl  -> usage per LLM call (payload.result.result.usage)
+                                             (no "model" field per call: each call is attributed to the
+                                             session's active_model)
 
-Sortie : <out-dir>/usage.json (brut) + <out-dir>/usage.md (rapport lisible).
+Output: <out-dir>/usage.json (raw) + <out-dir>/usage.md (readable report).
 
-Usage :
-    python3 tools/usage_report.py                          # tout l'historique
-    python3 tools/usage_report.py --project cpm            # sessions dont le cwd contient "cpm"
+Usage:
+    python3 tools/usage_report.py                          # full history
+    python3 tools/usage_report.py --project cpm            # sessions whose cwd contains "cpm"
     python3 tools/usage_report.py --since 2026-11-01 --out-dir reports
 
-Rétention (vérifié le 2026-11-08) : pas d'expiration automatique des logs de
-session (config [session_logging] : enabled/save_dir/session_prefix/generate_titles
-seulement) ; vibe.log tourne à LOG_MAX_BYTES (10 MiB défaut) ; suppression manuelle
-possible via /resume (touche d x2) — à éviter tant que le monitoring est actif ;
-rétention serveur Mistral via /data-retention ; runs headless : export.json via
---output-dir. Ce script snapshot les agrégats dans reports/.
+Retention (verified 2026-11-08): no automatic expiry of session logs (config
+[session_logging]: enabled/save_dir/session_prefix/generate_titles only);
+vibe.log rotates at LOG_MAX_BYTES (10 MiB default); manual deletion possible via
+/resume (d key x2) -- avoid while monitoring is active; Mistral server retention
+via /data-retention; headless runs: export.json via --output-dir. This script
+snapshots the aggregates into reports/.
 """
 
 import argparse
@@ -37,10 +37,10 @@ USAGE_KEYS = ("input_tokens", "output_tokens", "cached_input_tokens", "reasoning
 
 
 def resolve_models(cfg: dict[str, Any]) -> dict[str, Any]:
-    """Normalise la config des modèles en alias -> entry.
+    """Normalize the model config into alias -> entry.
 
-    `config.models` peut être une liste de dicts (avec 'alias') ou un dict alias -> entry.
-    Chaque entrée reçoit un 'name' par défaut égal à l'alias.
+    `config.models` can be a list of dicts (with 'alias') or a dict alias -> entry.
+    Each entry gets a default 'name' equal to the alias.
     """
     out: dict[str, Any] = {}
     models = (cfg or {}).get("models")
@@ -60,7 +60,7 @@ def resolve_models(cfg: dict[str, Any]) -> dict[str, Any]:
 
 
 def find_usage(obj: object, found: dict[str, float]) -> None:
-    """Extrait récursivement les compteurs d'usage d'un objet JSON (journal)."""
+    """Recursively extracts usage counters from a JSON object (journal)."""
     if isinstance(obj, dict):
         for k, v in obj.items():
             if k in USAGE_KEYS and isinstance(v, (int, float)):
@@ -73,7 +73,7 @@ def find_usage(obj: object, found: dict[str, float]) -> None:
 
 
 def parse_iso(s: str) -> datetime | None:
-    """Convertit une chaîne ISO 8601 en datetime (UTC-compatible), None si illisible."""
+    """Convert an ISO 8601 string to a datetime (UTC-compatible), None if unreadable."""
     try:
         return datetime.fromisoformat(s)
     except Exception:
@@ -81,7 +81,7 @@ def parse_iso(s: str) -> datetime | None:
 
 
 def load_session_meta(path: Path) -> dict[str, Any] | None:
-    """Lit un meta.json de session ; None si le fichier est illisible ou vide."""
+    """Read a session meta.json; None if the file is unreadable or empty."""
     try:
         return cast("dict[str, Any] | None", json.loads(path.read_text()))
     except Exception:
@@ -89,7 +89,7 @@ def load_session_meta(path: Path) -> dict[str, Any] | None:
 
 
 def load_sessions_by_id(session_root: Path) -> dict[str, Any]:
-    """Fusionne session_*/meta.json et unified/*/meta.json (dédup par session_id)."""
+    """Merge session_*/meta.json and unified/*/meta.json (dedup by session_id)."""
     by_id: dict[str, Any] = {}
     for meta_path in sorted(session_root.glob("session_*/meta.json")) + sorted(
         (session_root / "unified").glob("*/meta.json")
@@ -99,7 +99,7 @@ def load_sessions_by_id(session_root: Path) -> dict[str, Any]:
             continue
         sid = meta.get("session_id") or meta_path.parent.name
         cur = by_id.get(sid)
-        # garder la version la plus riche (celle qui a des stats)
+        # keep the richest version (the one with stats)
         if cur is None or (not cur.get("stats") and meta.get("stats")):
             meta["_dir"] = meta_path.parent.name
             by_id[sid] = meta
@@ -107,7 +107,7 @@ def load_sessions_by_id(session_root: Path) -> dict[str, Any]:
 
 
 def session_rows(by_id: dict[str, Any], project: str | None, since: datetime | None) -> list[dict[str, Any]]:
-    """Construit une ligne de rapport par session, filtrée par projet et par date."""
+    """Build one report row per session, filtered by project and date."""
     sessions: list[dict[str, Any]] = []
     for sid, meta in by_id.items():
         start = parse_iso(meta.get("start_time") or "")
@@ -147,7 +147,7 @@ def session_rows(by_id: dict[str, Any], project: str | None, since: datetime | N
 
 
 def llm_call_usage(session_root: Path) -> tuple[dict[str, dict[str, Any]], int]:
-    """Usage par appel LLM depuis les journaux unified, attribuée au active_model de la session."""
+    """LLM-call usage from the unified journals, attributed to the session's active_model."""
     per_model: dict[str, dict[str, Any]] = {}
     n_calls = 0
     for udir in sorted((session_root / "unified").glob("*/journal/*.jsonl")):
@@ -164,7 +164,7 @@ def llm_call_usage(session_root: Path) -> tuple[dict[str, dict[str, Any]], int]:
             try:
                 obj = json.loads(stripped)
             except Exception:
-                logger.debug("ligne de journal illisible dans %s", udir, exc_info=True)
+                logger.debug("unreadable journal line in %s", udir, exc_info=True)
                 continue
             found: dict[str, float] = {}
             find_usage(obj.get("payload", obj), found)
@@ -179,7 +179,7 @@ def llm_call_usage(session_root: Path) -> tuple[dict[str, dict[str, Any]], int]:
 
 
 def totals(sessions: list[dict[str, Any]]) -> dict[str, Any]:
-    """Agrège les totaux de tokens et de coût sur les sessions."""
+    """Aggregate token and cost totals across sessions."""
     return {
         "sessions": len(sessions),
         "prompt_tokens": sum(s["prompt_tokens"] or 0 for s in sessions),
@@ -193,30 +193,30 @@ def totals(sessions: list[dict[str, Any]]) -> dict[str, Any]:
 def markdown_report(
     data: dict[str, Any], sessions: list[dict[str, Any]], per_model: dict[str, dict[str, Any]], n_calls: int
 ) -> str:
-    """Construit le rapport markdown (usage.md) à partir des agrégats."""
+    """Build the markdown report (usage.md) from the aggregates."""
     vibe_home = data["vibe_home"]
     lines: list[str] = []
     lines.append("# Usage Vibe / Mistral — cpm-store")
     lines.append("")
     lines.append(
-        f"Généré le {data['generated_at']} — source `{vibe_home}/logs/session`"
-        + (f" — filtre projet `{data['project_filter']}`" if data["project_filter"] else " — toutes sessions")
+        f"Generated at {data['generated_at']} -- source `{vibe_home}/logs/session`"
+        + (f" -- project filter `{data['project_filter']}`" if data["project_filter"] else " -- all sessions")
     )
     lines.append("")
-    lines.append("## Totaux")
+    lines.append("## Totals")
     lines.append("")
     t = data["totals"]
-    lines.append(f"- sessions : **{t['sessions']}**")
+    lines.append(f"- sessions: **{t['sessions']}**")
     lines.append(
-        f"- tokens prompt : **{t['prompt_tokens']:,}** · completion : **{t['completion_tokens']:,}**"
-        f" · cached : **{t['cached_tokens']:,}** · total : **{t['total_tokens']:,}**"
+        f"- prompt tokens: **{t['prompt_tokens']:,}** · completion: **{t['completion_tokens']:,}**"
+        f" · cached: **{t['cached_tokens']:,}** · total: **{t['total_tokens']:,}**"
     )
-    lines.append(f"- coût total (stats Vibe) : **${t['cost_usd']:.4f}**")
-    lines.append(f"- appels LLM journalisés : **{n_calls}**")
+    lines.append(f"- total cost (Vibe stats): **${t['cost_usd']:.4f}**")
+    lines.append(f"- logged LLM calls: **{n_calls}**")
     lines.append("")
-    lines.append("## Par modèle (appels LLM journalisés, attribués au active_model de chaque session)")
+    lines.append("## Per model (logged LLM calls, attributed to each session's active_model)")
     lines.append("")
-    lines.append("| modèle | appels | input | output | cached | reasoning | total |")
+    lines.append("| model | calls | input | output | cached | reasoning | total |")
     lines.append("|---|---|---|---|---|---|---|")
     for m, a in sorted(per_model.items(), key=lambda kv: -kv[1]["total_tokens"]):
         lines.append(
@@ -224,10 +224,10 @@ def markdown_report(
             f"{a['cached_input_tokens']:,} | {a['reasoning_tokens']:,} | {a['total_tokens']:,} |"
         )
     lines.append("")
-    lines.append("## Par session")
+    lines.append("## Per session")
     lines.append("")
     lines.append(
-        "| session | début | durée (s) | cwd | alias | modèle | prompt | completion | cached | total | coût ($) |"
+        "| session | start | duration (s) | cwd | alias | model | prompt | completion | cached | total | cost ($) |"
     )
     lines.append("|---|---|---|---|---|---|---|---|---|---|---|")
     for s in sessions:
@@ -239,37 +239,35 @@ def markdown_report(
             f"{s['total_tokens'] or 0:,} | {(s['cost_usd'] or 0):.4f} |"
         )
     lines.append("")
-    lines.append("## Rétention des données (vérifié le 2026-11-08)")
+    lines.append("## Data retention (verified 2026-11-08)")
     lines.append("")
     lines.append(
-        "- Logs de session locaux (`~/.vibe/logs/session/`) : **pas d'expiration automatique** "
-        "(config `[session_logging]` = enabled/save_dir/session_prefix/generate_titles uniquement). "
-        "Suppression manuelle possible via `/resume` (touche `d` x2) : à éviter tant que le monitoring est actif."
+        "- Local session logs (`~/.vibe/logs/session/`): **no automatic expiry** "
+        "(config `[session_logging]` = enabled/save_dir/session_prefix/generate_titles only). "
+        "Manual deletion possible via `/resume` (`d` key x2): avoid while monitoring is active."
     )
-    lines.append("- `vibe.log` : rotation à `LOG_MAX_BYTES` (10 MiB par défaut).")
+    lines.append("- `vibe.log`: rotation at `LOG_MAX_BYTES` (10 MiB default).")
+    lines.append("- Server telemetry (Mistral, `enable_telemetry = true`): retention visible via `/data-retention`.")
     lines.append(
-        "- Télémétrie serveur (Mistral, `enable_telemetry = true`) : rétention consultable via `/data-retention`."
-    )
-    lines.append(
-        "- Runs headless : `vibe -p ... --output-dir reports/vibe-export` écrit `export.json` "
-        "(tokens, coût, stop reason) à chaque sortie."
+        "- Headless runs: `vibe -p ... --output-dir reports/vibe-export` writes `export.json` "
+        "(tokens, cost, stop reason) on every exit."
     )
     lines.append(
-        "- Note : les journaux unified ne contiennent pas de champ `model` par appel LLM ; ce rapport attribue "
-        "chaque appel au `active_model` de la session (résolu via la config) — fiable tant qu'on ne switch pas "
-        "de modèle en cours de session."
+        "- Note: the unified journals contain no `model` field per LLM call; this report attributes "
+        "each call to the session's `active_model` (resolved from the config) -- reliable as long as the "
+        "model is not switched mid-session."
     )
-    lines.append("- Ce rapport (`reports/usage.json` + `usage.md`) sert de snapshot durable des agrégats.")
+    lines.append("- This report (`reports/usage.json` + `usage.md`) acts as a durable snapshot of the aggregates.")
     return "\n".join(lines) + "\n"
 
 
 def main() -> int:
-    """Point d'entrée : lit les logs Vibe et écrit usage.json + usage.md dans --out-dir."""
+    """Entry point: reads the Vibe logs and writes usage.json + usage.md into --out-dir."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--vibe-home", default=str(Path.home() / ".vibe"))
     ap.add_argument("--out-dir", default="reports")
-    ap.add_argument("--project", default=None, help="filtre: sessions dont le cwd contient cette chaîne")
-    ap.add_argument("--since", default=None, help="date ISO YYYY-MM-DD")
+    ap.add_argument("--project", default=None, help="filter: sessions whose cwd contains this string")
+    ap.add_argument("--since", default=None, help="ISO date YYYY-MM-DD")
     args = ap.parse_args()
 
     vibe_home = Path(args.vibe_home)
@@ -297,7 +295,7 @@ def main() -> int:
     (out_dir / "usage.md").write_text(markdown_report(data, sessions, per_model, n_calls), encoding="utf-8")
 
     print(
-        f"OK: {out_dir}/usage.json + usage.md — {len(sessions)} sessions, {n_calls} appels LLM, "
+        f"OK: {out_dir}/usage.json + usage.md -- {len(sessions)} sessions, {n_calls} LLM calls, "
         f"{t['total_tokens']:,} tokens, ${t['cost_usd']:.4f}"
     )
     return 0
