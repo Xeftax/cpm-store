@@ -1,11 +1,11 @@
-# CI autonome de cpm-store (repo perso Xeftax, hors org Tetrixx-SG).
+# Self-contained CI of cpm-store (personal repo Xeftax, outside the Tetrixx-SG org).
 #
-# Remplace les workflows dockyard : ceux-ci appellent les reusable workflows
-# Tetrixx-SG/dock-yard/.github/workflows/_*.yml@main + les secrets d'une GitHub App
-# de l'org, tous inaccessibles depuis un compte perso (404) -> runs en failure avec
-# 0 job. Ici les checks appellent directement scripts/ci/*.sh (déjà dans le repo).
-# Les workflows dockyard sont déclarés en `decline` dans dockyard.toml pour que
-# `dockyard sync` ne les réintroduise pas.
+# Replaces the dockyard workflows: those call the Tetrixx-SG/dock-yard reusable
+# workflows .github/workflows/_*.yml@main + the secrets of a GitHub App of the org,
+# all unreachable from a personal account (404) -> runs fail with 0 jobs. Here the
+# checks call scripts/ci/*.sh directly (already in the repo).
+# The dockyard workflows are declared in `decline` in dockyard.toml so that
+# `dockyard sync` does not reintroduce them.
 name: CI
 
 on:
@@ -52,7 +52,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # fournit rustup ; msrv-rust.sh installe lui-même le toolchain épinglé (1.85)
+      # provides rustup; msrv-rust.sh installs the pinned toolchain (1.85) itself
       - uses: dtolnay/rust-toolchain@stable
       - run: scripts/ci/msrv-rust.sh
 
@@ -65,17 +65,78 @@ jobs:
       - run: cargo install cargo-deny --locked
       - run: scripts/ci/security-rust.sh
 
+  commit-hygiene:
+    name: commit-hygiene (no hook bypass in commits)
+    runs-on: ubuntu-latest
+    steps:
+      # full history: the scan covers the commit messages of the range
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: >-
+          scripts/ci/check-commit-hygiene.sh
+          "${{ github.event.pull_request.base.sha || 'origin/main' }}"
+          "${{ github.event.pull_request.head.sha || 'HEAD' }}"
+
+  language:
+    name: language (English-only added lines)
+    runs-on: ubuntu-latest
+    steps:
+      # full history: the scan covers the added lines of the whole PR range
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # check-language.py has a `uv run --script` shebang: uv and python must be installed
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+      - run: >-
+          scripts/ci/check-language.py --check
+          "${{ github.event.pull_request.base.sha || 'origin/main' }}"
+          "${{ github.event.pull_request.head.sha || 'HEAD' }}"
+
+  review-owners:
+    name: review-owners (owners triggered by the diff, informational)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # review-owners.py has a `uv run --script` shebang: uv and python must be installed
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+      - run: >-
+          scripts/ci/review-owners.py --check
+          "${{ github.event.pull_request.base.sha || 'origin/main' }}"
+          "${{ github.event.pull_request.head.sha || 'HEAD' }}"
+
+  review-required:
+    name: review-required (>=1 commit with a Reviewed-By trailer)
+    runs-on: ubuntu-latest
+    steps:
+      # full history: the scan covers the commit messages of the whole PR range
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: >-
+          scripts/ci/check-review-commit.sh
+          "${{ github.event.pull_request.base.sha || 'origin/main' }}"
+          "${{ github.event.pull_request.head.sha || 'HEAD' }}"
+
   gitleaks:
     name: secret scan (gitleaks, binaire vérifié par le script)
     runs-on: ubuntu-latest
     steps:
-      # historique complet : secret-scan.sh scanne tous les commits
+      # full history: secret-scan.sh scans all the commits
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - run: scripts/ci/secret-scan.sh
 
-  # --- domaine python (dockyard) ---
+  # --- python domain (dockyard) ---
 
   lint-python:
     name: lint-python (ruff check + format)

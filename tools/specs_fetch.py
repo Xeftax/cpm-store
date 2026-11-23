@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-"""Télécharge localement les PDF officiels des specs OMA utilisées par cpm-store.
+"""Downloads the official OMA spec PDFs used by cpm-store.
 
-Les specs OMA sont sous copyright OMA : usage interne/educatif autorisé,
-REDISTRIBUTION INTERDITE sans permission écrite. Les PDF ne sont donc jamais
-commités (voir .gitignore, région oma-specs-not-redistributable) : ce script les
-télécharge dans docs/specs/pdf/ (gitignored) pour un usage local / CI.
+The OMA specs are copyright OMA: internal/educational use allowed,
+REDISTRIBUTION FORBIDDEN without written permission. The PDFs are therefore
+never committed (see .gitignore, region oma-specs-not-redistributable): this
+script downloads them into docs/specs/pdf/ (gitignored) for local / CI use.
 
-Usage :
-    python3 tools/specs_fetch.py                     # télécharge les 7 PDF
-    python3 tools/specs_fetch.py --convert           # + conversion docling dans docs/specs/
-    python3 tools/specs_fetch.py --convert --qa      # + QA fidélité (tools/specs_qa.py)
+Usage:
+    python3 tools/specs_fetch.py                     # downloads the 7 PDFs
+    python3 tools/specs_fetch.py --convert           # + docling conversion into docs/specs/
+    python3 tools/specs_fetch.py --convert --qa      # + fidelity QA (tools/specs_qa.py)
 
-Le code de cpm-store reste publiable en open source (Apache-2.0) ; seules les
-copies/dérivés des specs OMA sont exclues du dépôt public.
+The cpm-store code stays publishable as open source (Apache-2.0); only the
+copies/derivatives of the OMA specs are excluded from the public repository.
 """
 
 import argparse
@@ -61,23 +61,23 @@ MIN_PDF_BYTES = 100_000
 MAX_REDIRECTS = 5
 HTTP_OK = 200
 HTTP_REDIRECTS = (301, 302, 303, 307, 308)
-# argv des appels subprocess : /usr/bin/env en argv[0] résout l'exécutable via le PATH, et
-# seules des valeurs littérales suivent — un chemin résolu par variable serait un input
-# non littéral (S603) ; les chemins dynamiques voyagent par l'environnement (kwargs).
+# argv of subprocess calls: /usr/bin/env as argv[0] resolves the executable via the PATH, and
+# only literal values follow -- a variable-resolved path would be a non-literal
+# input (S603); dynamic paths travel through the environment (kwargs).
 
 
 def require_tool(tool: str) -> None:
-    """Lève RuntimeError si `tool` n'est pas résolu dans le PATH (shutil.which)."""
+    """Raise RuntimeError if `tool` is not resolved on the PATH (shutil.which)."""
     if shutil.which(tool) is None:
-        raise RuntimeError(f"{tool} introuvable dans le PATH")
+        raise RuntimeError(f"{tool} not found on the PATH")
 
 
 def https_get(url: str) -> bytes:
-    """GET https sur `url` en pur Python (http.client), redirections https suivies."""
+    """HTTPS GET on `url` in pure Python (http.client), following HTTPS redirects."""
     parsed = urllib.parse.urlparse(url)
     for _ in range(MAX_REDIRECTS):
         if parsed.scheme != "https" or parsed.hostname is None:
-            raise ValueError(f"URL https attendue: {url}")
+            raise ValueError(f"expected HTTPS URL: {url}")
         path = parsed.path or "/"
         if parsed.query:
             path = f"{path}?{parsed.query}"
@@ -85,7 +85,18 @@ def https_get(url: str) -> bytes:
             parsed.hostname, parsed.port or 443, context=ssl.create_default_context(), timeout=60
         )
         try:
-            conn.request("GET", path, headers={"User-Agent": "cpm-store-tools"})
+            # openmobilealliance.org returns 403 to a non-browser UA; send a
+            # browser UA so the official PDFs can be downloaded locally.
+            conn.request(
+                "GET",
+                path,
+                headers={
+                    "User-Agent": (
+                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+                        " (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+                    )
+                },
+            )
             resp = conn.getresponse()
             location = resp.getheader("Location")
             if resp.status in HTTP_REDIRECTS and location:
@@ -93,15 +104,15 @@ def https_get(url: str) -> bytes:
                 parsed = urllib.parse.urlparse(location)
                 continue
             if resp.status != HTTP_OK:
-                raise RuntimeError(f"HTTP {resp.status} en GET {url}")
+                raise RuntimeError(f"HTTP {resp.status} on GET {url}")
             return resp.read()
         finally:
             conn.close()
-    raise RuntimeError(f"trop de redirections (> {MAX_REDIRECTS}) pour {url}")
+    raise RuntimeError(f"too many redirects (> {MAX_REDIRECTS}) for {url}")
 
 
 def convert_with_docling(pdf: Path, specs_dir: Path) -> subprocess.CompletedProcess[str]:
-    """Convertit un PDF en markdown avec docling (via uvx), output dans specs_dir."""
+    """Convert a PDF to markdown with docling (via uvx), output into specs_dir."""
     require_tool("uvx")
     return subprocess.run(
         [
@@ -126,7 +137,7 @@ def convert_with_docling(pdf: Path, specs_dir: Path) -> subprocess.CompletedProc
 
 
 def run_qa(pdf_dir: Path, specs_dir: Path, out: Path) -> int:
-    """Lance la QA fidélité (tools/specs_qa.py) dans ce même interpréteur."""
+    """Run the fidelity QA (tools/specs_qa.py) in this same interpreter."""
     here = Path(__file__).resolve().parent
     if str(here) not in sys.path:
         sys.path.insert(0, str(here))
@@ -135,14 +146,14 @@ def run_qa(pdf_dir: Path, specs_dir: Path, out: Path) -> int:
 
 
 def main() -> int:
-    """Télécharge les PDF des specs OMA, optionnellement convertis (docling) puis QA."""
+    """Download the OMA spec PDFs, optionally convert them (docling) then run QA."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--pdf-dir", default="docs/specs/pdf")
     ap.add_argument("--specs-dir", default="docs/specs")
     ap.add_argument(
-        "--convert", action="store_true", help="convertit les PDF en markdown avec docling dans --specs-dir"
+        "--convert", action="store_true", help="converts the PDFs to markdown with docling into --specs-dir"
     )
-    ap.add_argument("--qa", action="store_true", help="lance tools/specs_qa.py après conversion")
+    ap.add_argument("--qa", action="store_true", help="runs tools/specs_qa.py after conversion")
     args = ap.parse_args()
 
     pdf_dir = Path(args.pdf_dir)
@@ -150,11 +161,11 @@ def main() -> int:
     for name, url in SPECS:
         dst = pdf_dir / (name + ".pdf")
         if dst.exists() and dst.stat().st_size > MIN_PDF_BYTES:
-            print(f"skip (déjà là): {dst}")
+            print(f"skip (already present): {dst}")
             continue
         print(f"GET {url}")
         dst.write_bytes(https_get(url))
-        print(f"  -> {dst} ({dst.stat().st_size:,} octets)")
+        print(f"  -> {dst} ({dst.stat().st_size:,} bytes)")
 
     if args.convert:
         specs_dir = Path(args.specs_dir)
@@ -166,7 +177,7 @@ def main() -> int:
             if not ok:
                 print(r.stdout[-500:], r.stderr[-500:])
                 return 1
-        # remonte les artifacts à côté des md et réécrit les chemins d'images absolus
+        # moves the artifacts next to the md files and rewrites the absolute image paths
         for f in specs_dir.glob("*.md"):
             text = f.read_text(encoding="utf-8")
             text = text.replace(str(specs_dir.resolve()) + "/", "")

@@ -1,6 +1,6 @@
-//! Règle `file-sections` : un fichier .rs avec plus de 10 items et AUCUNE bannière
-//! de section (`// ==== ... ====`) manque d'organisation thématique -> découper
-//! en sections (déclaration / constructeurs / lookup / accesseurs / serde / tests).
+//! Rule `file-sections`: a .rs file with more than 10 items and NO section
+//! banner (`// ==== ... ====`) lacks thematic organization -> split into
+//! sections (declaration / constructors / lookup / accessors / serde / tests).
 
 use super::{Candidate, Rule};
 

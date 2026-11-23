@@ -1,5 +1,5 @@
-//! Moteur du checker : git, diff, config TOML, exécution des règles, modes.
-//! Toute la logique d'orchestration est ici ; les règles vivent dans `rules/`.
+//! Checker engine: git, diff, TOML config, rule execution, modes.
+//! All the orchestration logic lives here; the rules live in `rules/`.
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -22,8 +22,8 @@ pub struct Pattern {
     pub exclude_files: Vec<String>,
     #[serde(default)]
     pub message: String,
-    // champs doc (rule, applies_to, when_not_applicable, bad_example, good_example,
-    // occurrences) : ignorés par le checker, lus par les humains/LLM.
+    // doc fields (rule, applies_to, when_not_applicable, bad_example, good_example,
+    // occurrences): ignored by the checker, read by humans/LLMs.
 }
 
 #[derive(PartialEq)]
@@ -31,7 +31,7 @@ pub enum Mode {
     Diff,
     All,
     Audit(String),
-    Watch, // boucle infinie : re-lint quand un .rs change (poll mtime)
+    Watch, // infinite loop: re-lint when a .rs changes (mtime polling)
 }
 
 pub struct Finding {
@@ -59,7 +59,7 @@ pub fn git_root() -> String {
         .to_string()
 }
 
-/// Lignes ajoutées du diff base...ref, par fichier .rs : {path: {numéros de ligne}}.
+/// Added lines of the diff base...ref, per .rs file: {path: {line numbers}}.
 fn added_lines(root: &str, base: &str, refr: &str) -> HashMap<String, HashSet<usize>> {
     let diff = git(root, &["diff", &format!("{base}...{refr}"), "--", "*.rs"]);
     let mut map: HashMap<String, HashSet<usize>> = HashMap::new();
@@ -73,8 +73,8 @@ fn added_lines(root: &str, base: &str, refr: &str) -> HashMap<String, HashSet<us
             lineno = line
                 .split('+')
                 .nth(1)
-                .and_then(|s| s.split(',').next())
-                .and_then(|n| n.parse().ok())
+                .and_then(|s: &str| s.split(',').next())
+                .and_then(|n: &str| n.parse().ok())
                 .unwrap_or(0);
         } else if let Some(c) = &cur {
             if line.starts_with('+') && !line.starts_with("+++") {
@@ -91,7 +91,7 @@ fn added_lines(root: &str, base: &str, refr: &str) -> HashMap<String, HashSet<us
 }
 
 pub fn scope_match(scope: &str, path: &str) -> bool {
-    // "**/main.rs" -> suffixe ; "**/*.rs" -> wildcard '*' + extension
+    // "**/main.rs" -> suffix; "**/*.rs" -> wildcard '*' + extension
     if let Some(suffix) = scope.strip_prefix("**/") {
         if let Some(ext) = suffix.strip_prefix('*') {
             return path.ends_with(ext);
@@ -111,7 +111,11 @@ pub fn load_config(root: &str) -> Config {
         .expect("parse known-patterns.toml")
 }
 
-/// Exécute toutes les règles sur les fichiers concernés. Retourne tous les findings.
+/// Runs every rule over the relevant files. Returns all findings.
+// rules::all() yields Box<dyn Rule>, so find() borrows a &Box<dyn Rule>: the explicit
+// closure type trips clippy::borrowed_box, but dereferencing to &dyn Rule in the
+// signature would not match find's bound.
+#[allow(clippy::borrowed_box)]
 pub fn run(root: &str, cfg: &Config, base: &str, refr: &str, mode: &Mode) -> (Vec<Finding>, usize) {
     let added = added_lines(root, base, refr);
     let files: Vec<String> = match mode {
@@ -133,7 +137,7 @@ pub fn run(root: &str, cfg: &Config, base: &str, refr: &str, mode: &Mode) -> (Ve
     let mut findings = Vec::new();
     for path in &files {
         for p in &cfg.pattern {
-            if !scope_match(&p.scope, path) || p.exclude_files.iter().any(|e| e == path) {
+            if !scope_match(&p.scope, path) || p.exclude_files.iter().any(|e: &String| e == path) {
                 continue;
             }
             if let Mode::Audit(id) = mode {
@@ -142,7 +146,7 @@ pub fn run(root: &str, cfg: &Config, base: &str, refr: &str, mode: &Mode) -> (Ve
                 }
             }
             let src = match mode {
-                // All/Audit lisent le working tree ; seul le mode Diff lit le ref git
+                // All/Audit read the working tree; only Diff mode reads the git ref
                 Mode::All | Mode::Audit(_) | Mode::Watch => {
                     std::fs::read_to_string(Path::new(root).join(path)).unwrap_or_default()
                 }
@@ -152,12 +156,17 @@ pub fn run(root: &str, cfg: &Config, base: &str, refr: &str, mode: &Mode) -> (Ve
                 Ok(a) => a,
                 Err(_) => continue,
             };
-            let rule = rules::all().into_iter().find(|r| r.id() == p.id);
+            let rule = rules::all()
+                .into_iter()
+                .find(|r: &Box<dyn rules::Rule>| r.id() == p.id);
             let Some(rule) = rule else { continue };
             for Candidate { line, violation } in rule.candidates(&ast, &src) {
                 let in_diff = match mode {
                     Mode::All | Mode::Audit(_) | Mode::Watch => true,
-                    Mode::Diff => added.get(path).map(|s| s.contains(&line)).unwrap_or(false),
+                    Mode::Diff => added
+                        .get(path)
+                        .map(|s: &HashSet<usize>| s.contains(&line))
+                        .unwrap_or(false),
                 };
                 let emit_violation = violation && in_diff;
                 let emit = match mode {
@@ -165,14 +174,14 @@ pub fn run(root: &str, cfg: &Config, base: &str, refr: &str, mode: &Mode) -> (Ve
                     Mode::All | Mode::Watch => violation,
                     Mode::Audit(_) => true,
                 };
-                // soupape par ligne : `// review: ignore <rule-id>` sur la ligne du
-                // finding ou celle juste au-dessus (voir review-memory-owner)
+                // per-line escape hatch: `// review: ignore <rule-id>` on the finding
+                // line or the one just above (see review-memory-owner)
                 let marker = format!("review: ignore {}", p.id);
                 let ignored = violation
-                    && (line.saturating_sub(2)..line).any(|idx| {
+                    && (line.saturating_sub(2)..line).any(|idx: usize| {
                         src.lines()
                             .nth(idx)
-                            .map(|l| l.contains(&marker))
+                            .map(|l: &str| l.contains(&marker))
                             .unwrap_or(false)
                     });
                 if emit && !ignored {

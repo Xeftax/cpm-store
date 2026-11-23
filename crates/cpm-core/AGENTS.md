@@ -1,10 +1,10 @@
-# cpm-core — crate domaine pur
+# cpm-core — pure domain crate
 
-Core data model for OMA CPM (Converged Personal Messaging). **Aucun I/O, aucun unsafe, aucun
-runtime async dans la lib** (tokio uniquement en dev-dependency pour les tests des ports).
+Core data model for OMA CPM (Converged Personal Messaging). **No I/O, no unsafe, no
+async runtime in the lib** (tokio only as a dev-dependency for port tests).
 
-- `src/model/` — types du domaine (voir `src/model/AGENTS.md`)
-- `src/ports/` — traits async object-safe (`async-trait`) : contrats d'I/O, implémentés ailleurs
-- `tests/` — golden tests (annexes de la spec) + mock des ports
+- `src/model/` — domain types (see `src/model/AGENTS.md`)
+- `src/ports/` — async object-safe traits (`async-trait`): I/O contracts, implemented elsewhere
+- `tests/` — golden tests (spec annexes) + port mocks
 
-Preuve depuis la racine du workspace : `cargo test -p cpm-core`, `cargo clippy -p cpm-core`.
+Proof from the workspace root: `cargo test -p cpm-core`, `cargo clippy -p cpm-core`.

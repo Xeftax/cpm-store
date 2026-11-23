@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 
-# crate outil indépendante, hors du workspace cpm-*
+# standalone tool crate, outside the cpm-* workspace
 [workspace]
 
 [dependencies]

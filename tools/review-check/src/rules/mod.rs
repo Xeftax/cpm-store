@@ -1,7 +1,8 @@
-//! Registre des règles du linter. Une règle = un périmètre d'items AST + un statut
-//! (violation/conforme). L'enregistrement est factorisé ici : ajouter une règle =
-//! un fichier dans `rules/` + une ligne dans `all()`.
+//! Rule registry of the linter. A rule = an AST item scope + a status
+//! (violation/compliant). Registration is factored out here: adding a rule =
+//! one file in `rules/` + one line in `all()`.
 
+pub mod closure_params_typed;
 pub mod delegate_same_name;
 pub mod duplicate_fn_bodies;
 pub mod file_sections;
@@ -9,12 +10,13 @@ pub mod helper_in_fn;
 pub mod main_rs_thin;
 pub mod manual_serde_impl;
 pub mod newtype_pub;
+pub mod serde_redundant_attr;
 pub mod thematic_clusters;
 
 use syn::spanned::Spanned;
 use syn::{ImplItem, Item, ItemFn, ItemImpl, ItemStruct};
 
-/// Un item candidat, avec son statut.
+/// A candidate item, with its status.
 #[derive(Debug)]
 pub struct Candidate {
     pub line: usize,
@@ -23,14 +25,16 @@ pub struct Candidate {
 
 pub trait Rule {
     fn id(&self) -> &'static str;
-    /// Tout le périmètre de la règle (conforme + violation) — sert au mode --audit.
-    /// `src` = source du fichier (pour les règles qui lisent les commentaires, ex. sections).
+    /// The whole scope of the rule (compliant + violation) — used by --audit mode.
+    /// `src` = source of the file (for rules that read comments, e.g. sections).
     fn candidates(&self, ast: &syn::File, src: &str) -> Vec<Candidate>;
 }
 
-/// Registre unique des règles.
+/// Single rule registry.
 pub fn all() -> Vec<Box<dyn Rule>> {
     vec![
+        Box::new(closure_params_typed::ClosureParamsTyped),
+        Box::new(serde_redundant_attr::SerdeRedundantAttr),
         Box::new(newtype_pub::NewtypePub),
         Box::new(helper_in_fn::HelperInFn),
         Box::new(manual_serde_impl::ManualSerdeImpl),
@@ -42,43 +46,43 @@ pub fn all() -> Vec<Box<dyn Rule>> {
     ]
 }
 
-// ── Helpers d'itération sur l'AST (factorisation des match génériques) ──────
+// ── AST iteration helpers (factoring out the generic matches) ──────
 
 pub fn line_of<T: Spanned>(n: &T) -> usize {
     n.span().start().line
 }
 
-/// Bannière de section reconnue : `// ==== Titre ====` (section) ou
-/// `// ---- Titre ----` (sous-section) — 3+ signes identiques après `// `.
+/// Recognized section banner: `// ==== Title ====` (section) or
+/// `// ---- Title ----` (subsection) — 3+ identical signs after `// `.
 pub fn is_section_banner(l: &str) -> bool {
     let t = l.trim_start();
     t.starts_with("// ===") || t.starts_with("// ---")
 }
 
 pub fn structs(ast: &syn::File) -> impl Iterator<Item = &ItemStruct> {
-    ast.items.iter().filter_map(|i| match i {
+    ast.items.iter().filter_map(|i: &Item| match i {
         Item::Struct(s) => Some(s),
         _ => None,
     })
 }
 
 pub fn fns(ast: &syn::File) -> impl Iterator<Item = &ItemFn> {
-    ast.items.iter().filter_map(|i| match i {
+    ast.items.iter().filter_map(|i: &Item| match i {
         Item::Fn(f) => Some(f),
         _ => None,
     })
 }
 
 pub fn impls(ast: &syn::File) -> impl Iterator<Item = &ItemImpl> {
-    ast.items.iter().filter_map(|i| match i {
+    ast.items.iter().filter_map(|i: &Item| match i {
         Item::Impl(imp) => Some(imp),
         _ => None,
     })
 }
 
 pub fn impl_methods(ast: &syn::File) -> impl Iterator<Item = &syn::ImplItemFn> {
-    impls(ast).flat_map(|imp| {
-        imp.items.iter().filter_map(|s| match s {
+    impls(ast).flat_map(|imp: &ItemImpl| {
+        imp.items.iter().filter_map(|s: &ImplItem| match s {
             ImplItem::Fn(m) => Some(m),
             _ => None,
         })
@@ -93,8 +97,8 @@ mod tests {
         let ast = syn::parse_file(src).unwrap();
         rule.candidates(&ast, src)
             .into_iter()
-            .filter(|c| c.violation)
-            .map(|c| c.line)
+            .filter(|c: &Candidate| c.violation)
+            .map(|c: Candidate| c.line)
             .collect()
     }
 
@@ -102,13 +106,13 @@ mod tests {
     fn newtype_pub_detects_pub_field_only() {
         let r = newtype_pub::NewtypePub;
         assert_eq!(violations(&r, "pub struct A(pub Vec<u8>);"), vec![1]);
-        // conforme : champ privé
+        // compliant: private field
         let ast = syn::parse_file("struct B(Vec<u8>);").unwrap();
         assert!(r
             .candidates(&ast, "struct B(Vec<u8>);")
             .iter()
             .all(|c| !c.violation));
-        // hors périmètre : struct nommée
+        // out of scope: named struct
         assert!(r
             .candidates(
                 &syn::parse_file("struct C { x: u8 }").unwrap(),
@@ -123,7 +127,7 @@ mod tests {
         assert_eq!(violations(&r, "fn f() { struct H { x: u8 } }"), vec![1]);
         assert!(violations(&r, "fn g() {}").is_empty());
         assert!(violations(&r, "struct Top;").is_empty());
-        // le Helper peut aussi vivre dans une méthode d'impl (cas attribute.rs PR #3)
+        // the Helper can also live inside an impl method (attribute.rs PR #3 case)
         assert_eq!(
             violations(&r, "impl A { fn f() { struct H { x: u8 } } }"),
             vec![1]
@@ -138,14 +142,14 @@ mod tests {
             violations(&r, "impl<'de> Deserialize<'de> for A {}"),
             vec![1]
         );
-        // impl de trait non-serde : hors périmètre
+        // non-serde trait impl: out of scope
         assert!(violations(&r, "impl std::fmt::Debug for A {}").is_empty());
     }
 
     #[test]
     fn duplicate_fn_bodies_flags_same_shape() {
         let r = duplicate_fn_bodies::DuplicateFnBodies;
-        // message_context / direction : même corps à NOM/type près -> 2 violations
+        // message_context / direction: same body up to NAME/type -> 2 violations
         let src = r#"
 impl AttributeList {
     fn message_context(&self) -> Option<MessageContext> {
@@ -158,18 +162,14 @@ impl AttributeList {
 }
 "#;
         let v = violations(&r, src);
-        assert_eq!(
-            v.len(),
-            2,
-            "les deux fns dupliquées doivent être flaguées: {v:?}"
-        );
+        assert_eq!(v.len(), 2, "both duplicated fns must be flagged: {v:?}");
     }
 
     #[test]
     fn file_sections_flags_big_file_without_banners() {
         let r = file_sections::FileSections;
         let big = (0..12)
-            .map(|i| format!("fn f{i}() {{}}"))
+            .map(|i: i32| format!("fn f{i}() {{}}"))
             .collect::<Vec<_>>()
             .join("\n");
         assert_eq!(violations(&r, &big).len(), 1);
@@ -184,7 +184,7 @@ impl AttributeList {
     #[test]
     fn thematic_clusters_group_call_chains() {
         let r = thematic_clusters::ThematicClusters;
-        // get -> values -> first_value -> message_context : une chaîne = un cluster de 4
+        // get -> values -> first_value -> message_context: one chain = one cluster of 4
         let src = r#"
 impl L {
     fn get(&self, n: &str) -> Option<u8> { self.0.iter().find(|a| *a == 1) }
@@ -196,12 +196,9 @@ impl L {
 "#;
         let ast = syn::parse_file(src).unwrap();
         let c = r.candidates(&ast, src);
-        assert_eq!(c.len(), 1, "un seul cluster de taille >= 3: {c:?}");
-        assert!(
-            c[0].violation,
-            "pas de bannière // ==== au-dessus -> violation"
-        );
-        // avec une bannière au-dessus -> conforme (section // ==== ou sous-section // ----)
+        assert_eq!(c.len(), 1, "a single cluster of size >= 3: {c:?}");
+        assert!(c[0].violation, "no // ==== banner above -> violation");
+        // with a banner above -> compliant (// ==== section or // ---- subsection)
         let with_banner = format!("// ==== Lookup ====\n{src}");
         let ast2 = syn::parse_file(&with_banner).unwrap();
         assert!(r
@@ -213,29 +210,147 @@ impl L {
     #[test]
     fn main_rs_thin_flags_definitions_in_main() {
         let r = main_rs_thin::MainRsThin;
-        // violation : struct + impl dans main.rs
+        // violation: struct + impl in main.rs
         let src = "mod x;\nfn main() {}\nstruct Config { a: u8 }\nimpl Config {}\n";
         assert_eq!(violations(&r, src).len(), 2);
-        // conforme : CLI mince (mod + fn main uniquement)
+        // compliant: thin CLI (mod + fn main only)
         let ok = "mod checker;\nfn main() {}\n";
         assert!(violations(&r, ok).is_empty());
     }
 
     #[test]
+    fn closure_params_typed_flags_untyped_params() {
+        let r = closure_params_typed::ClosureParamsTyped;
+        // untyped param -> violation at the closure line
+        assert_eq!(violations(&r, "fn f() { let g = |a| a + 1; }"), vec![1]);
+        assert_eq!(
+            violations(&r, "fn f(xs: &[i32]) { xs.iter().find(|a| *a == 1); }"),
+            vec![1]
+        );
+        // typed param -> compliant
+        assert!(violations(&r, "fn f() { let g = |a: i32| a + 1; }").is_empty());
+        assert!(violations(
+            &r,
+            "fn f(xs: &[i32]) { xs.iter().find(|a: &&i32| **a == 1); }"
+        )
+        .is_empty());
+        // wildcard -> compliant (nothing to type)
+        assert!(violations(&r, "fn f() { let g = |_| 1; }").is_empty());
+        // no params -> no candidate
+        assert!(violations(&r, "fn f() { let g = || 1; }").is_empty());
+        // tuple pattern must be typed as a whole
+        assert_eq!(
+            violations(
+                &r,
+                "fn f(pairs: &[(i32, i32)]) { pairs.iter().find(|(k, _)| *k == 1); }"
+            ),
+            vec![1]
+        );
+        assert!(violations(
+            &r,
+            "fn f(pairs: &[(i32, i32)]) { pairs.iter().find(|(k, _): &(i32, i32)| k == &1); }"
+        )
+        .is_empty());
+    }
+
+    #[test]
+    fn rename_rule_matches_serde_outputs() {
+        use serde_redundant_attr::RenameRule;
+        let cc = RenameRule::parse("camelCase").unwrap();
+        assert_eq!(cc.apply_to_field("resource_url"), "resourceUrl");
+        assert_eq!(cc.apply_to_field("type"), "type");
+        assert_eq!(cc.apply_to_field("last_mod_seq"), "lastModSeq");
+        assert_eq!(cc.apply_to_variant("DeletedObject"), "deletedObject");
+        assert_eq!(cc.apply_to_variant("ResetBox"), "resetBox");
+        assert_eq!(RenameRule::parse("verbatim"), None);
+    }
+
+    #[test]
+    fn serde_redundant_attr_flags_rename_alias_default() {
+        let r = serde_redundant_attr::SerdeRedundantAttr;
+        // rename == camelCase(name) and alias == name are redundant; the wire-acronym
+        // rename "resourceURL" differs from camelCase("resource_url") = "resourceUrl"
+        // and must NOT be flagged.
+        let src = r#"
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct S {
+    #[serde(rename = "name", alias = "name")]
+    name: String,
+    /// Wire name "resourceURL" (spec acronym; camelCase would give "resourceUrl").
+    #[serde(rename = "resourceURL")]
+    resource_url: String,
+}
+"#;
+        assert_eq!(
+            violations(&r, src).len(),
+            2,
+            "rename+alias on 'name' flagged, resourceURL not"
+        );
+        // identity rename without rename_all is redundant too
+        let src_id = "#[derive(Serialize)] struct S2 { #[serde(rename = \"x\")] x: u32 }";
+        assert_eq!(violations(&r, src_id).len(), 1);
+        // container default makes a bare field default dead
+        let src_def =
+            "#[derive(Serialize, Default)] #[serde(default)] struct T { #[serde(default)] x: u32 }";
+        assert_eq!(violations(&r, src_def).len(), 1);
+        // no container default -> field default is meaningful
+        let src_nodef = "#[derive(Serialize)] struct U { #[serde(default)] x: u32 }";
+        assert!(violations(&r, src_nodef).is_empty());
+        // enum variant rename equal to rename_all(variant) is redundant
+        let src_enum = r#"
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+enum E {
+    #[serde(rename = "resetBox")]
+    ResetBox,
+    #[serde(rename = "other")]
+    OtherThing,
+}
+"#;
+        assert_eq!(
+            violations(&r, src_enum).len(),
+            2,
+            "ResetBox: rename == camelCase(variant) -> redundant (rule A); OtherThing: rename != camelCase and no doc -> undocumented (rule D)"
+        );
+        // rule D: a load-bearing rename (differs from rename_all output) needs a ///
+        // comment on the member; a redundant one is flagged regardless of the doc
+        let src_doc = r#"
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct W {
+    #[serde(rename = "resourceURL")] // wire "resourceURL": spec caps acronym, not camelCase "resourceUrl"
+    resource_url: String,
+    /// Wire name "notifyURL" (spec acronym; camelCase would give "notifyUrl").
+    #[serde(rename = "notifyURL")]
+    notify_url: String,
+    #[serde(rename = "callbackURL")]
+    callback_url: String,
+}
+"#;
+        let v = violations(&r, src_doc);
+        assert_eq!(
+            v.len(),
+            1,
+            "trailing-comment and /// renames ok, undocumented callbackURL flagged: {v:?}"
+        );
+    }
+
+    #[test]
     fn delegate_detects_same_name_method_call_only() {
         let r = delegate_same_name::DelegateSameName;
-        // violation : fn len(&self) { self.0.len() }  (même nom des deux côtés)
+        // violation: fn len(&self) { self.0.len() }  (same name on both sides)
         assert_eq!(
             violations(&r, "impl A { fn len(&self) -> usize { self.0.len() } }"),
             vec![1]
         );
-        // conforme : logique métier ajoutée
+        // compliant: added business logic
         assert!(violations(
             &r,
             "impl A { fn get(&self, n: &str) -> bool { self.0.contains(n) } }"
         )
         .is_empty());
-        // conforme : nom différent de l'appel interne
+        // compliant: name different from the internal call
         assert!(violations(&r, "impl A { fn size(&self) -> usize { self.0.len() } }").is_empty());
     }
 }

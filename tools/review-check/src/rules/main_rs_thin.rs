@@ -1,6 +1,6 @@
-//! Règle `main-rs-thin` : périmètre = tous les items d'un fichier `main.rs` ;
-//! violation si le fichier contient des définitions (struct/enum/trait/impl/mod inline)
-//! — la logique métier va dans des modules, main.rs ne garde que le CLI.
+//! Rule `main-rs-thin`: scope = every item of a `main.rs` file;
+//! violation when the file contains definitions (struct/enum/trait/impl/inline mod)
+//! — business logic goes into modules, main.rs keeps only the CLI.
 
 use super::{line_of, Candidate, Rule};
 use syn::Item;
@@ -15,11 +15,11 @@ impl Rule for MainRsThin {
     fn candidates(&self, ast: &syn::File, _src: &str) -> Vec<Candidate> {
         ast.items
             .iter()
-            .map(|item| Candidate {
+            .map(|item: &Item| Candidate {
                 line: line_of(item),
                 violation: matches!(
                     item,
-                    Item::Struct(_) | Item::Enum(_) | Item::Trait(_) | Item::Impl(_) | Item::Mod(_) // mod inline avec body (les `mod x;` sont des Item::Mod sans content)
+                    Item::Struct(_) | Item::Enum(_) | Item::Trait(_) | Item::Impl(_) | Item::Mod(_) // inline mod with body (`mod x;` are Item::Mod without content)
                 ) && !matches!(item, Item::Mod(m) if m.content.is_none()),
             })
             .collect()

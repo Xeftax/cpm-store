@@ -1,0 +1,46 @@
+# Review owners map — cpm-store.
+#
+# scripts/ci/review-owners.py reads this file and prints the owners triggered by a
+# diff (CI job `review-owners`, Vibe hook `review-owners`, pre-push). Each owner is a
+# skill in .vibe/skills/<id>/SKILL.md: spawn it (agents.spawn, instructions = the
+# SKILL.md file) before/after a PR touching its domain — never run an owner inline.
+#
+# Triggers per [[owner]]:
+#   paths    = globs matched against the changed files of the diff
+#   contains = substrings matched against the added lines of the diff
+
+[[owner]]
+id = "model-struct-owner"
+description = "Domain model type declarations of cpm-core (struct/enum, pub visibility, derives, fields, macro_rules! factoring of repeated methods, sections)."
+paths = ["crates/cpm-core/src/model/**"]
+contains = ["pub struct ", "pub enum "]
+
+[[owner]]
+id = "serde-mapping-owner"
+description = "JSON <-> Rust mapping in cpm-core (derive serde, manual Serialize/Deserialize impls, deserialize_with, one_or_many, 'de lifetimes)."
+paths = ["crates/**/*.rs"]
+contains = ["#[serde(", "deserialize_with", "Serialize for", "Deserialize for", "derive(Serialize", "derive(Deserialize"]
+
+[[owner]]
+id = "doc-comment-owner"
+description = "Doc comments and comments of cpm-core Rust files (/// and //!, module headers, thematic sections, inline tests)."
+paths = ["crates/cpm-core/**/*.rs"]
+contains = ["///", "//!"]
+
+[[owner]]
+id = "constructor-owner"
+description = "Constructor and public fn signatures of cpm-core (new, impl Into<...> vs concrete type, Vec<T> vs impl IntoIterator)."
+paths = ["crates/cpm-core/**/*.rs"]
+contains = ["pub fn new("]
+
+[[owner]]
+id = "git-workflow-owner"
+description = "Git workflow of cpm-store (commits, branches, PRs, pre-commit hooks). MUST BE USED at every PR review-after (run the commit-hygiene check) and before any discussion of bypassing hooks."
+paths = [".pre-commit-config.yaml", ".github/workflows/**", "scripts/ci/**", "dockyard.toml", ".vibe/hooks.toml"]
+contains = ["Reviewed-By:", "--no-verify", "Hooks-Bypassed"]
+
+[[owner]]
+id = "review-memory-owner"
+description = "Review memory of cpm-store (known-patterns: what to note, which severity, occurrences index, mechanism hygiene). MUST BE USED before setting any severity above warning and before indexing occurrences."
+paths = [".vibe/review/**", "tools/review-check/**"]
+contains = ["review: ignore"]

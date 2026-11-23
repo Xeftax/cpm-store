@@ -1,5 +1,5 @@
-//! Règle `newtype-pub-with-delegation` : périmètre = tous les tuple structs ;
-//! violation si au moins un champ est `pub` (mélange transparent + encapsulé).
+//! Rule `newtype-pub-with-delegation`: scope = all tuple structs;
+//! violation when at least one field is `pub` (mixing transparent + encapsulated).
 
 use super::{structs, Candidate, Rule};
 use syn::{Fields, Visibility};
@@ -13,13 +13,13 @@ impl Rule for NewtypePub {
 
     fn candidates(&self, ast: &syn::File, _src: &str) -> Vec<Candidate> {
         structs(ast)
-            .filter(|s| matches!(s.fields, Fields::Unnamed(_)))
-            .map(|s| Candidate {
+            .filter(|s: &&syn::ItemStruct| matches!(s.fields, Fields::Unnamed(_)))
+            .map(|s: &syn::ItemStruct| Candidate {
                 line: super::line_of(&s.ident),
                 violation: s
                     .fields
                     .iter()
-                    .any(|f| matches!(f.vis, Visibility::Public(_))),
+                    .any(|f: &syn::Field| matches!(f.vis, Visibility::Public(_))),
             })
             .collect()
     }

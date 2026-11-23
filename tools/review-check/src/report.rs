@@ -1,9 +1,9 @@
-//! Sortie du checker : format humain (défaut) ou gcc (problemMatcher VS Code).
+//! Checker output: human format (default) or gcc (VS Code problemMatcher).
 
 use crate::checker::{Finding, Mode};
 
 pub fn print(findings: &[Finding], n_files: usize, mode: &Mode, gcc: bool, scope_desc: &str) {
-    let violations = findings.iter().filter(|f| f.violation).count();
+    let violations = findings.iter().filter(|f: &&Finding| f.violation).count();
     for f in findings {
         if gcc {
             if f.violation {
@@ -27,6 +27,6 @@ pub fn print(findings: &[Finding], n_files: usize, mode: &Mode, gcc: bool, scope
         }
     }
     println!(
-        "\n{violations} violation(s) — {scope_desc} ({n_files} fichiers .rs) — exit 0 (warning only, ADR 0001)"
+        "\n{violations} violation(s) — {scope_desc} ({n_files} .rs files) — exit 0 (warning only, ADR 0001)"
     );
 }

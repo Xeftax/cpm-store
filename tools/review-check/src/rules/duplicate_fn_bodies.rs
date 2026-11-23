@@ -1,17 +1,17 @@
-//! Règle `duplicate-fn-bodies` : deux fonctions (ou méthodes) avec le même corps
-//! à un identifiant/literal près sont de la duplication -> factoriser (macro_rules!,
-//! trait, ou helper partagé). Cas d'école : message_context()/direction() dans
-//! attribute.rs (PR #3) = `first_value(NOM).map(T::parse)`.
+//! Rule `duplicate-fn-bodies`: two functions (or methods) with the same body
+//! up to an identifier/literal are duplication -> factor out (macro_rules!,
+//! trait, or shared helper). Textbook case: message_context()/direction() in
+//! attribute.rs (PR #3) = `first_value(NAME).map(T::parse)`.
 //!
-//! Normalisation : chaque token Ident -> "I", Literal -> "S" (via proc-macro2),
-//! puis hash du corps normalisé. Seuil : corps >= 12 tokens pour éviter le bruit
-//! sur les délégations triviales (déjà couvertes par manual-delegation-methods).
+//! Normalization: each Ident token -> "I", Literal -> "S" (via proc-macro2),
+//! then hash of the normalized body. Threshold: body >= 12 tokens to avoid noise
+//! on trivial delegations (already covered by manual-delegation-methods).
 
 use super::{fns, impl_methods, line_of, Candidate, Rule};
 use proc_macro2::{Delimiter, TokenStream, TokenTree};
 use std::collections::HashMap;
 
-const MIN_TOKENS: usize = 8; // en dessous: délégations triviales (self.0.len() ~ 6 tokens), déjà couvertes par manual-delegation-methods
+const MIN_TOKENS: usize = 8; // below: trivial delegations (self.0.len() ~ 6 tokens), already covered by manual-delegation-methods
 
 pub struct DuplicateFnBodies;
 
@@ -22,8 +22,9 @@ impl Rule for DuplicateFnBodies {
 
     fn candidates(&self, ast: &syn::File, _src: &str) -> Vec<Candidate> {
         let mut bodies: Vec<(usize, String)> = Vec::new();
-        let free = fns(ast).map(|f| (line_of(&f.sig.ident), &*f.block));
-        let methods = impl_methods(ast).map(|m| (line_of(&m.sig.ident), &m.block));
+        let free = fns(ast).map(|f: &syn::ItemFn| (line_of(&f.sig.ident), &*f.block));
+        let methods =
+            impl_methods(ast).map(|m: &syn::ImplItemFn| (line_of(&m.sig.ident), &m.block));
         for (line, block) in free.chain(methods) {
             let norm = normalize(quote::ToTokens::to_token_stream(block));
             if norm.split_whitespace().count() >= MIN_TOKENS {
@@ -45,10 +46,10 @@ impl Rule for DuplicateFnBodies {
     }
 }
 
-/// Identifiants -> "I", literals -> "S", délimiteurs explicites.
+/// Idents -> "I", literals -> "S", explicit delimiters.
 fn normalize(ts: TokenStream) -> String {
     ts.into_iter()
-        .map(|tt| match tt {
+        .map(|tt: TokenTree| match tt {
             TokenTree::Ident(_) => "I".to_string(),
             TokenTree::Literal(_) => "S".to_string(),
             TokenTree::Punct(p) => p.as_char().to_string(),

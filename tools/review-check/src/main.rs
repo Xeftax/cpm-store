@@ -1,12 +1,12 @@
-//! review-check — linter déterministe de known-patterns (ADR 0001). CLI mince :
-//! parse les args, délègue au moteur (checker) et au rapport (report).
+//! review-check — deterministic known-patterns linter (ADR 0001). Thin CLI:
+//! parses args, delegates to the engine (checker) and the report (report).
 //!
 //! Usage:
-//!   review-check [base] [ref]                  lignes AJOUTÉES du diff (défaut: main HEAD)
-//!   review-check --all [base] [ref]            audit de TOUS les fichiers
-//!   review-check --audit=<rule-id> [base] [ref] périmètre complet d'une règle (ok/violation)
-//!   --format=gcc                               sortie problemMatcher VS Code
-//! Toujours exit 0 (warning only — bloquant = compilateur/tests/clippy, ADR 0001).
+//!   review-check [base] [ref]                  ADDED lines of the diff (default: main HEAD)
+//!   review-check --all [base] [ref]            audit of ALL files
+//!   review-check --audit=<rule-id> [base] [ref] full scope of one rule (ok/violation)
+//!   --format=gcc                               VS Code problemMatcher output
+//! Always exits 0 (warning only — blocking = compiler/tests/clippy, ADR 0001).
 
 mod checker;
 mod report;
@@ -34,7 +34,7 @@ fn main() {
             positional.push(a);
         }
     }
-    // précédence fixe, indépendante de l'ordre des flags : audit > watch > all > diff
+    // fixed precedence, independent of flag order: audit > watch > all > diff
     let mode = if let Some(id) = audit {
         Mode::Audit(id)
     } else if watch_flag {
@@ -57,17 +57,17 @@ fn main() {
 
     let (findings, n_files) = checker::run(&root, &cfg, base, refr, &mode);
     let scope_desc = match &mode {
-        Mode::Diff => format!("lignes ajoutées du diff {base}...{refr}"),
-        Mode::All => "TOUS les fichiers (audit complet)".to_string(),
-        Mode::Audit(id) => format!("périmètre complet de la règle {id}"),
+        Mode::Diff => format!("added lines of the diff {base}...{refr}"),
+        Mode::All => "ALL files (full audit)".to_string(),
+        Mode::Audit(id) => format!("full scope of rule {id}"),
         Mode::Watch => unreachable!(),
     };
     report::print(&findings, n_files, &mode, gcc, &scope_desc);
 }
 
-/// Boucle watch : toutes les 500ms, re-lint (mode All) si un fichier .rs a changé
-/// (poll des mtimes, portable). Chaque run est loggé avec un timestamp pour le
-/// problemMatcher background de VS Code (beginsPattern "[review-check] run").
+/// Watch loop: every 500ms, re-lint (All mode) if a .rs file changed
+/// (mtime polling, portable). Each run is logged with a timestamp for the
+/// VS Code background problemMatcher (beginsPattern "[review-check] run").
 fn watch(root: &str, cfg: &checker::Config, gcc: bool) {
     use std::collections::HashMap;
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -81,10 +81,14 @@ fn watch(root: &str, cfg: &checker::Config, gcc: bool) {
             .collect();
         let mut changed = first;
         for f in &files {
-            if let Ok(mt) =
-                std::fs::metadata(std::path::Path::new(root).join(f)).and_then(|m| m.modified())
+            if let Ok(mt) = std::fs::metadata(std::path::Path::new(root).join(f))
+                .and_then(|m: std::fs::Metadata| m.modified())
             {
-                if last_mtime.get(f).map(|&p| mt > p).unwrap_or(true) {
+                if last_mtime
+                    .get(f)
+                    .map(|&p: &SystemTime| mt > p)
+                    .unwrap_or(true)
+                {
                     changed = true;
                 }
                 last_mtime.insert(f.clone(), mt);
@@ -93,17 +97,11 @@ fn watch(root: &str, cfg: &checker::Config, gcc: bool) {
         if changed {
             let secs = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
-                .map(|d| d.as_secs())
+                .map(|d: Duration| d.as_secs())
                 .unwrap_or(0);
             println!("[review-check] run unix={secs}");
             let (findings, n_files) = checker::run(root, cfg, "HEAD", "HEAD", &Mode::All);
-            report::print(
-                &findings,
-                n_files,
-                &Mode::All,
-                gcc,
-                "watch — tous les fichiers",
-            );
+            report::print(&findings, n_files, &Mode::All, gcc, "watch — all files");
         }
         first = false;
         std::thread::sleep(Duration::from_millis(500));
