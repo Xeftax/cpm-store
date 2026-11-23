@@ -97,6 +97,33 @@ repos:
     stages: [ pre-commit ]
     types: [ markdown ]
 
+  # Standard PR tooling: same invocations as the matching CI jobs, through the same
+  # scripts/ci wrappers where they exist.
+  - id: gitlint
+    name: gitlint
+    description: "Lint commit messages (conventional-commit title, no hook bypass in bodies)"
+    entry: "bash -c '[[ -x scripts/ci/gitlint.sh ]] || exit 0; exec scripts/ci/gitlint.sh'"
+    language: system
+    stages: [ pre-commit ]
+    pass_filenames: false
+
+  - id: actionlint
+    name: actionlint
+    description: "Lint GitHub workflow files"
+    entry: "bash -c '[[ -x \"$(command -v actionlint)\" ]] || exit 0; exec actionlint'"
+    language: system
+    stages: [ pre-commit ]
+    files: '^\.github/workflows/.*\.ya?ml$'
+    pass_filenames: false
+
+  - id: codespell
+    name: codespell
+    description: "Check Markdown files for common typos"
+    entry: "bash -c '[[ -x \"$(command -v codespell)\" ]] || exit 0; exec codespell'"
+    language: system
+    stages: [ pre-commit ]
+    types: [ markdown ]
+
 # Global settings
 default_stages: [ pre-commit ]
 fail_fast: false

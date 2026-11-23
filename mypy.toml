@@ -12,3 +12,16 @@ exclude = [
     "(^|/)build/",
     "(^|/)dist/",
 ]
+
+# gitlint is untyped upstream; scripts/ci/gitlint_rules.py only needs its API surface.
+[[tool.mypy.overrides]]
+module = "gitlint.*"
+ignore_missing_imports = true
+
+# The custom rule subclasses gitlint's CommitRule, which is Any under the override
+# above; strict's disallow_subclassing_any would reject the only extension point
+# gitlint offers. Scoped to this one module (both resolutions mypy uses: direct file
+# target resolves to `gitlint_rules`, the full-tree `.` walk to `ci.gitlint_rules`).
+[[tool.mypy.overrides]]
+module = ["gitlint_rules", "ci.gitlint_rules"]
+disallow_subclassing_any = false
