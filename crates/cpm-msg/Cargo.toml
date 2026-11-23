@@ -11,7 +11,6 @@ publish.workspace = true
 cpm-core = { path = "../cpm-core" }
 serde = { workspace = true }
 thiserror = { workspace = true }
-chrono = { workspace = true }
 mail-parser = { workspace = true }
 
 [lints]
