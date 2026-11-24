@@ -88,7 +88,7 @@ jobs:
           fetch-depth: 0
       # check-language.py has a `uv run --script` shebang: uv and python must be installed
       - uses: astral-sh/setup-uv@v5
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version-file: .python-version
       - run: >-
@@ -105,7 +105,7 @@ jobs:
           fetch-depth: 0
       # review-owners.py has a `uv run --script` shebang: uv and python must be installed
       - uses: astral-sh/setup-uv@v5
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version-file: .python-version
       - run: >-
@@ -147,7 +147,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version-file: .python-version
       - run: uv sync --all-extras --frozen
@@ -159,7 +159,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version-file: .python-version
       - run: uv sync --all-extras --frozen
@@ -171,7 +171,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version-file: .python-version
       - run: uv sync --all-extras --frozen
@@ -183,7 +183,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version-file: .python-version
       - run: uv sync --all-extras --frozen
@@ -195,7 +195,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version-file: .python-version
       - run: git ls-files '*.md' | xargs scripts/ci/format-markdown.sh --check
