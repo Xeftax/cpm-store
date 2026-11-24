@@ -1,69 +1,69 @@
-# Specs OMA embarquées
+# Embedded OMA specs
 
-Ce dossier contient les copies **markdown** des 7 spécifications OMA utilisées par
-ce projet (6 specs CPM V2_2 + `OMA-TS-REST_NetAPI_NMS`, base du binding REST).
-Les PDF officiels publiés sur https://www.openmobilealliance.org/release/ restent
-la **référence normative** ; ces copies servent de contexte de lecture (humain et
-LLM). Chaque `<spec>.md` est accompagné de son dossier `<spec>_artifacts/` (images
-extraites, référencées en chemins relatifs).
+This directory contains the **markdown** copies of the 7 OMA specifications used
+by this project (6 CPM V2_2 specs + `OMA-TS-REST_NetAPI_NMS`, base of the REST
+binding). The official PDFs published on https://www.openmobilealliance.org/release/
+remain the **normative reference**; these copies are a reading context (human and
+LLM). Each `<spec>.md` comes with its `<spec>_artifacts/` directory (extracted
+images, referenced with relative paths).
 
 ## Provenance
 
-- **PDF officiels** : Open Mobile Alliance —
-  - CPM V2_2 : https://www.openmobilealliance.org/release/CPM/V2_2-20200907-C/
-  - REST_NetAPI_NMS : https://www.openmobilealliance.org/release/REST_NETAPI_NMS/V1_0-20190528-C/
-    (© Open Mobile Alliance Ltd., publiés sous les termes indiqués dans chaque document).
-- **Conversion PDF → markdown : faite dans ce repo**, le 2026-11-08, avec
+- **Official PDFs**: Open Mobile Alliance —
+  - CPM V2_2: https://www.openmobilealliance.org/release/CPM/V2_2-20200907-C/
+  - REST_NetAPI_NMS: https://www.openmobilealliance.org/release/REST_NETAPI_NMS/V1_0-20190528-C/
+    (© Open Mobile Alliance Ltd., published under the terms stated in each document).
+- **PDF → markdown conversion: done in this repo**, on 2026-11-08, with
   [docling](https://github.com/docling-project/docling)
-  (`docling convert <pdf> --to md --image-export-mode referenced`), hiérarchie de
-  titres et tableaux mieux préservés que la conversion tierce.
-  Les anciennes copies markdown copiées telles quelles depuis le dépôt tiers
-  [Xeftax/cpm-rag](https://github.com/Xeftax/cpm-rag) ont été **remplacées** le
-  2026-11-08 (elles restent dans l'historique git et dans ce dépôt tiers).
-- Les PDF eux-mêmes ne sont **pas** commités (voir section « Publication » ci-dessous).
+  (`docling convert <pdf> --to md --image-export-mode referenced`), heading
+  hierarchy and tables better preserved than the third-party conversion.
+  The older markdown copies taken as-is from the third-party repository
+  [Xeftax/cpm-rag](https://github.com/Xeftax/cpm-rag) have been **replaced** on
+  2026-11-08 (they remain in the git history and in that third-party repository).
+- The PDFs themselves are **not** committed (see the "Publication" section below).
 
-## Publication (repo public open source)
+## Publication (public open-source repo)
 
-Le **code** de cpm-store est publiable librement (Apache-2.0, œuvre originale).
-En revanche les documents OMA sont sous **copyright OMA** : les termes
-(« Used with the permission of the Open Mobile Alliance », Use Agreement
-omaspecworks.org) autorisent l'usage **interne/éducatif uniquement** — pas la
-redistribution. Sont donc **gitignorés et jamais commités** (région
-`oma-specs-not-redistributable` de `.gitignore`) :
+The **code** of cpm-store is freely publishable (Apache-2.0, original work).
+The OMA documents, on the other hand, are under **OMA copyright**: the terms
+("Used with the permission of the Open Mobile Alliance", Use Agreement
+omaspecworks.org) allow **internal/educational use only** — not redistribution.
+The following are therefore **gitignored and never committed** (`oma-specs-not-redistributable`
+region of `.gitignore`):
 
-- `docs/specs/pdf/` (les PDF téléchargés),
-- `docs/specs/OMA-*.md` et `docs/specs/*_artifacts/` (conversions markdown + images),
-- les **fixtures golden extraites des annexes** des specs (elles font partie du
-  document OMA) — les tests doivent les générer au moment du test depuis les PDF
-  locaux, pas les embarquer.
+- `docs/specs/pdf/` (the downloaded PDFs),
+- `docs/specs/OMA-*.md` and `docs/specs/*_artifacts/` (markdown conversions + images),
+- the **golden fixtures extracted from the spec annexes** (they are part of the
+  OMA document) — the tests must generate them at test time from the local PDFs,
+  not embed them.
 
-Pour travailler en local ou en CI : `python3 tools/specs_fetch.py --convert --qa`
-télécharge les 7 PDF officiels depuis openmobilealliance.org, les convertit
-(docling) et lance la QA. Citer des numéros de section ou de courtes citations dans
-nos propres docs reste OK ; copier le contenu des specs, non.
+To work locally or in CI: `python3 tools/specs_fetch.py --convert --qa`
+downloads the 7 official PDFs from openmobilealliance.org, converts them
+(docling) and runs the QA. Quoting a section number or short excerpts in
+our own docs remains OK; copying the content of the specs is not.
 
-- Une conversion par **Mistral OCR** reste possible via `tools/spec_ingest.py`
-  quand `MISTRAL_API_KEY` est exportée dans le shell.
+- A conversion via **Mistral OCR** remains possible with `tools/spec_ingest.py`
+  when `MISTRAL_API_KEY` is exported in the shell.
 
-## Vérification qualité (2026-11-08, relancée après restructuration)
+## Quality check (2026-11-08, rerun after restructuring)
 
-Outil : `tools/specs_qa.py` (rapport : `reports/specs-qa.json`).
-Méthode : texte des PDF via `pdftotext`, comparaison avec les markdown après
-normalisation (minuscules, non-alphanum supprimé — tolère retours à la ligne,
-césures, casse).
+Tool: `tools/specs_qa.py` (report: `reports/specs-qa.json`).
+Method: PDF text via `pdftotext`, compared with the markdown after
+normalization (lowercase, non-alphanumeric removed — tolerant of line breaks,
+hyphenation, casing).
 
-Résultats sur les 7 markdown canoniques :
+Results on the 7 canonical markdown files:
 
-- **Chaînes normatives clés** (identifiants SCR, tokens `restartToken`/`lastModSeq`,
-  URLs d'exemple `/nms/v1/...`, sections `5.2.1`/`6.3.2`, types d'objets CPM, etc.) :
-  **54/54 présentes à la fois dans le PDF et dans le markdown** (12–16 clés par spec).
-- **Échantillon aléatoire de 300 phrases par spec** : 67–79 % de match exact.
-  Les phrases non matchées sont des artefacts de mise en page PDF (en-têtes, pieds de
-  page « Used with the permission of the Open Mobile Alliance », numéros de page,
-  phrases coupées par saut de page).
+- **Key normative strings** (SCR identifiers, `restartToken`/`lastModSeq` tokens,
+  sample `/nms/v1/...` URLs, `5.2.1`/`6.3.2` sections, CPM object types, etc.):
+  **54/54 present both in the PDF and in the markdown** (12–16 keys per spec).
+- **Random sample of 300 sentences per spec**: 67–79% exact match.
+  The unmatched sentences are PDF layout artifacts (headers, footers
+  "Used with the permission of the Open Mobile Alliance", page numbers,
+  sentences split across page breaks).
 
-Limites connues de cette QA : elle détecte les **omissions**, pas les ajouts ni les
-tableaux aplatis par une conversion. **Pour les annexes normatives** (SCR annexe B,
-exemples JSON/MIME annexes C–H, qui serviront de fixtures golden) : **extraire
-directement depuis le PDF avec `pdftotext`**, le markdown servant d'aide de lecture.
-En cas de doute, le PDF officiel fait autorité.
+Known limitations of this QA: it detects **omissions**, not additions nor
+tables flattened by a conversion. **For the normative annexes** (SCR annex B,
+JSON/MIME examples annexes C–H, which will serve as golden fixtures): **extract
+directly from the PDF with `pdftotext`**, using the markdown as a reading aid.
+When in doubt, the official PDF is authoritative.

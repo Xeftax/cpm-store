@@ -1,43 +1,43 @@
-# Known-patterns de review — cpm-store (voir docs/adr/0001-review-known-patterns.md)
+# Review known-patterns — cpm-store (see docs/adr/0001-review-known-patterns.md)
 #
-# Structure d'une règle (voir .vibe/skills/review-memory-owner) :
-#   rule              = la GÉNÉRALISATION (le principe, pas un cas isolé)
-#   applies_to        = à quoi ça s'applique en général
-#   when_not_applicable = exceptions documentées (jamais supprimées)
-#   La DÉTECTION est du code déterministe dans tools/review-check (AST via syn),
-#   pas une regex : chaque id ci-dessous = une fonction du linter (comme un lint clippy).
+# Structure of a rule (see .vibe/skills/review-memory-owner):
+#   rule              = the GENERALIZATION (the principle, not an isolated case)
+#   applies_to        = what it applies to in general
+#   when_not_applicable = documented exceptions (never deleted)
+#   DETECTION is deterministic code in tools/review-check (AST via syn),
+#   not a regex: each id below = one linter rule (like a clippy lint).
 #   rule/applies_to/when_not_applicable/bad_example/good_example/occurrences = DOC
-#   (debug, lecture LLM, suivi) — ne remplace PAS la règle exécutable.
+#   (debug, LLM reading, tracking) — it does NOT replace the executable rule.
 #
-# Détection volontairement LARGE au début (la règle AST du linter matche le principe,
-# pas un objet précis) : on resserre ensuite (scope / when_not_applicable) au fil des
-# exemples. Mieux vaut un warning de trop, qu'on écarte en disant « ne s'applique pas à ce
-# cas », qu'un pattern manqué parce que la règle était trop étroite.
-#   occurrences       = toutes les occurrences connues (file/lines/since)
+# Detection is deliberately BROAD at first (the linter's AST rule matches the principle,
+# not a specific object): it is then tightened (scope / when_not_applicable) as
+# examples come in. Better one extra warning, dismissed with "does not apply to this
+# case", than a missed pattern because the rule was too narrow.
+#   occurrences       = all known occurrences (file/lines/since)
 #
-# Règles :
-# - severity = "warning" UNIQUEMENT (bloquant = compilateur / tests / clippy -D)
-# - ON NE SUPPRIME JAMAIS UNE RÈGLE : on l'édite/adapte, ou soupape par ligne
+# Rules:
+# - severity = "warning" ONLY (blocking = compiler / tests / clippy -D)
+# - NEVER DELETE A RULE: edit/adapt it, or use the per-line valve
 #   `// review: ignore <rule-id>`
-# - exclude_files verrouillé : ajout uniquement avec accord explicite de l'utilisateur
-# - les warnings restent jusqu'à ce que la règle ou les fichiers soient fixés
-# - lancer le check sur les LIGNES AJOUTÉES du diff, pas les fichiers entiers
+# - exclude_files locked: additions only with the user's explicit approval
+# - warnings stay until the rule or the files are fixed
+# - run the check on the ADDED LINES of the diff, not whole files
 #
 # Exception: an id with no AST rule (e.g. `english-only`) is a doc-only contract —
 # the checker skips it; its entry documents where detection actually lives.
 
 [[pattern]]
 id = "serde-helper-identity"
-rule = "Un impl Serialize/Deserialize manuel + struct Helper n'est justifié que quand la forme JSON diffère de la forme interne (renommage, fusion de champs, validation, transformation). Si la conversion est une recopie champ à champ (identité), poser #[serde(default, deserialize_with, rename)] directement sur le champ et dériver."
-applies_to = "toute struct data mappée depuis/vers du JSON"
-when_not_applicable = "enum/newtype avec mapping custom de variantes (ex. MessageContext, MetadataFlag) : pas de Helper, impl manuel légitime"
+rule = "A manual Serialize/Deserialize impl plus a Helper struct is only justified when the JSON shape differs from the internal shape (renaming, merging fields, validation, transformation). If the conversion is a field-by-field copy (identity), put #[serde(default, deserialize_with, rename)] directly on the field and derive instead."
+applies_to = "any data struct mapped to/from JSON"
+when_not_applicable = "enum/newtype with custom variant mapping (e.g. MessageContext, MetadataFlag): no Helper, a manual impl is legitimate"
 scope = "crates/**/*.rs"
-message = "impl serde manuel + Helper avec conversion identité -> derive + #[serde(...)] sur le champ. Voir .vibe/skills/serde-mapping-owner."
+message = "manual serde impl + Helper with identity conversion -> derive + #[serde(...)] on the field. See .vibe/skills/serde-mapping-owner."
 bad_example = """
 impl<'de> Deserialize<'de> for Attribute {
     fn deserialize<D>(d: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
-        struct Helper { name: String, value: Vec<String> }   // recopie identité
+        struct Helper { name: String, value: Vec<String> }   // identity copy
         let h = Helper::deserialize(d)?;
         Ok(Attribute { name: h.name, value: h.value })
     }
@@ -54,18 +54,18 @@ pub struct Attribute {
 severity = "warning"
 exclude_files = []
 occurrences = [
-  { file = "crates/cpm-core/src/model/attribute.rs", lines = "26-37 et 115-121 (Helper dans méthode d'impl — détecté depuis l'ajustement du périmètre helper_in_fn)", since = "PR #3; fixed in PR #12 (review/attribute-list-crate)" },
+  { file = "crates/cpm-core/src/model/attribute.rs", lines = "26-37 and 115-121 (Helper inside an impl method — detected since the helper_in_fn scope adjustment)", since = "PR #3; fixed in PR #12 (review/attribute-list-crate)" },
 ]
 
 [[pattern]]
 id = "manual-serde-impl"
-rule = "Par défaut, dériver Serialize/Deserialize avec des attributs champ (#[serde(default, deserialize_with, rename, ...)]) couvre ~95% des cas. Un impl manuel ne se justifie que pour un mapping non exprimable par les attributs (enum à variantes custom, newtype enveloppe, logique one_or_many custom)."
-applies_to = "tout type mappé en JSON"
-when_not_applicable = "enums/newtypes avec sérialisation custom de variantes (kind.rs MessageContext/Direction, flags.rs MetadataFlag/FlagList, search.rs RequestError) — impl manuel attendu, à valider au cas par cas"
+rule = "By default, derive Serialize/Deserialize with field attributes (#[serde(default, deserialize_with, rename, ...)]) — this covers ~95% of cases. A manual impl is only justified for a mapping that attributes cannot express (enum with custom variants, newtype wrapper, custom one_or_many logic)."
+applies_to = "any type mapped to JSON"
+when_not_applicable = "enums/newtypes with custom variant serialization (kind.rs MessageContext/Direction, flags.rs MetadataFlag/FlagList, search.rs RequestError) — manual impl expected, validated case by case"
 scope = "crates/**/*.rs"
-message = "impl serde manuel : vérifier qu'un derive + attributs champ ne suffit pas. Voir .vibe/skills/serde-mapping-owner."
+message = "manual serde impl: check that derive + field attributes would not be enough. See .vibe/skills/serde-mapping-owner."
 bad_example = """
-impl<'de> Deserialize<'de> for Foo { /* ... */ }  // sans raison de transformation
+impl<'de> Deserialize<'de> for Foo { /* ... */ }  // no transformation reason
 """
 good_example = """
 #[derive(Deserialize)]
@@ -73,7 +73,7 @@ pub struct Foo {
     #[serde(default, deserialize_with = "super::one_or_many", rename = "fooBar")]
     pub field: Vec<String>,
 }
-// impl manuel réservé aux enums/newtypes à mapping custom (ex. MessageContext)
+// manual impl reserved for enums/newtypes with custom mapping (e.g. MessageContext)
 """
 severity = "warning"
 exclude_files = []
@@ -83,19 +83,19 @@ occurrences = [
 
 [[pattern]]
 id = "newtype-pub-with-delegation"
-rule = "Un newtype choisit UN mode d'exposition : transparent (champ pub, accès .0) OU encapsulé (champ privé + méthodes). Ne jamais mélanger : avec un champ pub, les méthodes de délégation (iter/len/is_empty) sont mortes. L'API de l'inner se GÉNÈRE par Deref<Target = Inner> (tout-ou-rien) ; un sous-ensemble se choisit par méthodes écrites ou macro delegate!."
-applies_to = "tout newtype `struct X(pub Vec<T>)` ou wrapper de collection"
-when_not_applicable = "quand un invariant doit être vérifié à l'insertion (ex. unicité des noms REST-NMS §5.3.2.6) : champ privé, pas de DerefMut"
+rule = "A newtype picks ONE exposure mode: transparent (pub field, .0 access) OR encapsulated (private field + methods). Never mix: with a pub field, the delegation methods (iter/len/is_empty) are dead code. The inner API is GENERATED via Deref<Target = Inner> (all-or-nothing); a subset is selected with explicit methods or the delegate! macro."
+applies_to = "any newtype `struct X(pub Vec<T>)` or collection wrapper"
+when_not_applicable = "when an invariant must be checked on insertion (e.g. name uniqueness, REST-NMS §5.3.2.6): private field, no DerefMut"
 scope = "crates/**/*.rs"
-message = "newtype pub + délégations manuelles = redondant. Choisir Deref (API générée, champ privé) ou pub sans délégations. Voir .vibe/skills/model-struct-owner."
+message = "pub newtype + manual delegations = redundant. Choose Deref (generated API, private field) or pub without delegations. See .vibe/skills/model-struct-owner."
 bad_example = """
 pub struct AttributeList(pub Vec<Attribute>);   // transparent
-impl AttributeList { pub fn len(&self) -> usize { self.0.len() } }  // ET délégations = mélange
+impl AttributeList { pub fn len(&self) -> usize { self.0.len() } }  // AND delegations = mixing
 """
 good_example = """
-pub struct AttributeList { attribute: Vec<Attribute> }   // champ privé, struct nommée
+pub struct AttributeList { attribute: Vec<Attribute> }   // private field, named struct
 impl Deref for AttributeList { type Target = Vec<Attribute>; fn deref(&self) -> &Self::Target { &self.attribute } }
-// PAS de DerefMut : ne pas exposer push/remove qui violent l'unicité des noms (REST-NMS §5.3.2.6)
+// NO DerefMut: do not expose push/remove, which would violate name uniqueness (REST-NMS §5.3.2.6)
 impl From<Vec<Attribute>> for AttributeList { /* ... */ }
 """
 severity = "warning"
@@ -106,75 +106,75 @@ occurrences = [
 
 [[pattern]]
 id = "manual-delegation-methods"
-rule = "Ne jamais écrire à la main une méthode qui est une pure délégation vers l'inner d'un newtype : Deref<Target = Inner> génère automatiquement len/iter/is_empty/get/... (tout-ou-rien). Pour un sous-ensemble explicite : méthodes choisies ou macro delegate! { len -> usize, ... }."
-applies_to = "tout newtype/wrapper qui expose l'API de son type interne"
-when_not_applicable = "méthodes avec logique métier ajoutée (ex. get case-insensitive §5.3.2.5) : les écrire à la main est correct"
+rule = "Never hand-write a method that is a pure delegation to a newtype's inner: Deref<Target = Inner> automatically provides len/iter/is_empty/get/... (all-or-nothing). For an explicit subset: selected methods or the macro delegate! { len -> usize, ... }."
+applies_to = "any newtype/wrapper exposing its inner type's API"
+when_not_applicable = "methods with added business logic (e.g. case-insensitive get, §5.3.2.5): writing them by hand is correct"
 scope = "crates/**/*.rs"
-message = "méthode réécrite à la main qui ne fait que déléguer à la méthode de même nom de l'inner -> Deref la génère. Voir .vibe/skills/model-struct-owner."
+message = "hand-written method that only delegates to the inner's same-named method -> Deref generates it. See .vibe/skills/model-struct-owner."
 bad_example = """
-pub fn len(&self) -> usize { self.0.len() }   // réécrit à la main
+pub fn len(&self) -> usize { self.0.len() }   // hand written
 pub fn iter(&self) -> impl Iterator<Item = &T> { self.0.iter() }
 """
 good_example = """
 impl Deref for X { type Target = Vec<T>; fn deref(&self) -> &Self::Target { &self.0 } }
-// x.len(), x.iter() ... disponibles sans rien écrire
+// x.len(), x.iter() ... available without writing anything
 """
 severity = "warning"
 exclude_files = []
 occurrences = [
-  { file = "crates/cpm-core/src/model/attribute.rs", lines = "94, 98, 134-144 (avant refactor)", since = "PR #3; fixed in PR #12 (review/attribute-list-crate)" },
+  { file = "crates/cpm-core/src/model/attribute.rs", lines = "94, 98, 134-144 (before refactor)", since = "PR #3; fixed in PR #12 (review/attribute-list-crate)" },
 ]
 
 [[pattern]]
 id = "main-rs-thin"
-rule = "Un fichier main.rs reste un CLI mince : uniquement `mod x;`, `use`, `fn main` et petites fns CLI. Toute définition (struct/enum/trait/impl/mod inline) part dans un module dédié."
-applies_to = "tout fichier nommé main.rs"
-when_not_applicable = "binaire minuscule où tout tient en quelques lignes (reste un warning, à écarter au cas par cas)"
+rule = "A main.rs file stays a thin CLI: only `mod x;`, `use`, `fn main` and small CLI fns. Any definition (struct/enum/trait/impl/inline mod) moves to a dedicated module."
+applies_to = "any file named main.rs"
+when_not_applicable = "tiny binary where everything fits in a few lines (still a warning, dismissed case by case)"
 scope = "**/main.rs"
-message = "main.rs contient des définitions de types/logique -> déplacer dans un module (mod x;) et garder main.rs mince. Cas d'école : le main.rs monolithique de review-check avant son découpage (fix commit b1c0e83)."
+message = "main.rs contains type/logic definitions -> move them to a module (mod x;) and keep main.rs thin. Textbook case: review-check's monolithic main.rs before its split (fix commit b1c0e83)."
 severity = "warning"
 exclude_files = []
 occurrences = [
-  { file = "tools/review-check/src/main.rs", lines = "tout le fichier avant b1c0e83", since = "session review 2026-11-15, fixed in b1c0e83" },
+  { file = "tools/review-check/src/main.rs", lines = "whole file before b1c0e83", since = "review session 2026-11-15, fixed in b1c0e83" },
 ]
 
 [[pattern]]
 id = "duplicate-fn-bodies"
-rule = "Deux fonctions/méthodes avec le même corps à un identifiant/literal près sont de la duplication -> factoriser (macro_rules!, trait, ou helper partagé). Détection par normalisation des tokens (idents -> I, literals -> S) + hash; seuil 12 tokens pour éviter le bruit."
-applies_to = "tout fichier .rs (toutes fonctions libres et méthodes d'impl)"
-when_not_applicable = "corps triviaux (< 12 tokens) : déjà couvert par manual-delegation-methods ; duplication intentionnelle de 2 lignes documentée au cas par cas"
+rule = "Two functions/methods with the same body up to an identifier/literal are duplication -> factor out (macro_rules!, trait, or a shared helper). Detection by token normalization (idents -> I, literals -> S) + hash; threshold of 12 tokens to avoid noise."
+applies_to = "any .rs file (all free functions and impl methods)"
+when_not_applicable = "trivial bodies (< 12 tokens): already covered by manual-delegation-methods; intentional 2-line duplication documented case by case"
 scope = "**/*.rs"
-message = "corps de fonction dupliqué (à un nom près) -> factoriser (macro/trait/helper). Cas d'école: message_context()/direction() dans attribute.rs (PR #3)."
+message = "duplicated function body (up to a name) -> factor out (macro/trait/helper). Textbook case: message_context()/direction() in attribute.rs (PR #3)."
 severity = "warning"
 exclude_files = []
 occurrences = [
-  { file = "crates/cpm-core/src/model/attribute.rs", lines = "122-132 (message_context/direction, avant refactor)", since = "PR #3; fixed in PR #12 via macro typed_attribute!" },
+  { file = "crates/cpm-core/src/model/attribute.rs", lines = "122-132 (message_context/direction, before refactor)", since = "PR #3; fixed in PR #12 via macro typed_attribute!" },
 ]
 
 [[pattern]]
 id = "file-sections"
-rule = "Un fichier .rs de plus de 10 items sans aucune bannière de section (`// ==== Titre ====` pour une section, `// ---- Titre ----` pour une sous-section) manque d'organisation thématique -> découper en sections (déclaration / constructeurs / lookup / accesseurs / serde / tests)."
-applies_to = "tout fichier .rs conséquent"
-when_not_applicable = "fichiers <= 10 items (trop petits pour mériter des sections) ; fichiers avec bannières existantes"
+rule = "A .rs file with more than 10 items and no section banner (`// ==== Title ====` for a section, `// ---- Title ----` for a subsection) lacks thematic organization -> split into sections (declarations / constructors / lookup / accessors / serde / tests)."
+applies_to = "any substantial .rs file"
+when_not_applicable = "files <= 10 items (too small to deserve sections); files with existing banners"
 scope = "**/*.rs"
-message = "fichier volumineux sans sections thématiques (// ==== ... ==== ou sous-section // ---- ... ----) -> découper par thème."
+message = "large file without thematic sections (// ==== ... ==== or subsection // ---- ... ----) -> split by theme."
 severity = "warning"
 exclude_files = []
 occurrences = [
-  { file = "crates/cpm-core/src/model/attribute.rs", lines = "avant refactor (pas de bannières)", since = "PR #3; fixed in PR #12 (review/attribute-list-crate)" },
+  { file = "crates/cpm-core/src/model/attribute.rs", lines = "before refactor (no banners)", since = "PR #3; fixed in PR #12 (review/attribute-list-crate)" },
 ]
 
 [[pattern]]
 id = "thematic-clusters"
-rule = "Le sémantique « qui va ensemble » = le graphe d'appels intra-fichier : une fonction qui appelle une autre fonction du même fichier crée une arête (union-find). Une composante connexe de >= 3 fonctions est un groupe thématique ; s'il n'a pas de bannière (`// ====` section ou `// ----` sous-section) dans les 5 lignes au-dessus, le fichier manque de sections -> violation."
-applies_to = "tout fichier .rs avec plusieurs fonctions interconnectées"
-when_not_applicable = "clusters déjà sous une bannière de section ; fonctions orphelines isolées (taille < 3)"
+rule = "The semantic \"what goes together\" = the intra-file call graph: a function calling another function of the same file creates an edge (union-find). A connected component of >= 3 functions is a thematic group; if it has no banner (`// ====` section or `// ----` subsection) within the 5 lines above it, the file lacks sections -> violation."
+applies_to = "any .rs file with several interconnected functions"
+when_not_applicable = "clusters already under a section banner; isolated orphan functions (size < 3)"
 scope = "**/*.rs"
-message = "cluster de fonctions liées par appels (graphe intra-fichier) sans bannière (// ==== ou // ----) au-dessus -> créer une section thématique. Ex: get->values->first_value->message_context (attribute.rs PR #3)."
+message = "cluster of functions linked by calls (intra-file graph) without a banner (// ==== or // ----) above -> create a thematic section. E.g. get->values->first_value->message_context (attribute.rs PR #3)."
 severity = "warning"
 exclude_files = []
 occurrences = [
-  { file = "crates/cpm-core/src/model/attribute.rs", lines = "60-132 (lookup + accesseurs typés, avant refactor)", since = "PR #3; fixed in PR #12 (review/attribute-list-crate)" },
+  { file = "crates/cpm-core/src/model/attribute.rs", lines = "60-132 (lookup + typed accessors, before refactor)", since = "PR #3; fixed in PR #12 (review/attribute-list-crate)" },
 ]
 
 [[pattern]]

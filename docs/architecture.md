@@ -1,173 +1,174 @@
 # Architecture
 
-Cas d'usage pilote : intégration dans **Linphone** (backup/sync de conversations).
-La bibliothèque reste générique — voir README.
+Pilot use case: integration into **Linphone** (conversation backup/sync).
+The library remains generic — see README.
 
-## Vue d'ensemble — ports & adapters
+## Overview — ports & adapters
 
-`cpm-store` est un workspace Cargo organisé en **ports & adapters** (pattern calqué
-sur doc-station : ports dans le core sans dépendances externes, adapters dans des
-crates séparés, `Result` à chaque frontière) :
+`cpm-store` is a Cargo workspace organized as **ports & adapters** (a pattern
+modeled on doc-station: ports in the core with no external dependencies, adapters
+in separate crates, `Result` at every boundary):
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  cpm-core   domain + PORTS — pur : aucune I/O, pas d'unsafe  │
-│  model/     Object, Folder, flags, SyncState, mapping ids    │
-│  ports/     traits : StoreBackend, MessageStorage,           │
+│  cpm-core   domain + PORTS — pure: no I/O, no unsafe         │
+│  model/     Object, Folder, flags, SyncState, id mapping     │
+│  ports/     traits: StoreBackend, MessageStorage,            │
 │             SyncStateStore                                   │
-│  error.rs   CpmError — Result<T, CpmError> partout           │
+│  error.rs   CpmError — Result<T, CpmError> everywhere        │
 └───────────▲──────────────────────────────────────────────────┘
             │ port StoreBackend            │ ports MessageStorage + SyncStateStore
-   ┌────────┴───────────┐                  │ (implémentés par l'hôte)
-   │  ADAPTERS entrants │                  ▼
+   ┌────────┴───────────┐                  │ (implemented by the host)
+   │  INBOUND ADAPTERS  │                  ▼
 ┌──┴──────────┐  ┌───────────────┐   ┌───────────┐
-│ cpm-nms     │  │ cpm-imap      │   │  l'hôte   │ (Linphone, SQLite)
-│ adapter REST│  │ adapter IMAP  │   └─────┬─────┘
+│ cpm-nms     │  │ cpm-imap      │   │  the host │ (Linphone, SQLite)
+│ REST adapter│  │ IMAP adapter  │   └─────┬─────┘
 │ (V1)        │  │ (phase 7)     │         │
 └──┬──────────┘  └───────────────┘         │
    └──────────┬────────────┘               │
               ▼                            │
         ┌────────────┐  port MessageCodec  │
         │ cpm-client │ ───────────────► ┌──┴───────┐
-        │ moteur de  │                  │ cpm-msg  │ (CPIM / MIME)
-        │ synchro,   │                  └──────────┘
+        │ sync       │                  │ cpm-msg  │ (CPIM / MIME)
+        │ engine,    │                  └──────────┘
         │ binding-   │
         │ agnostic   │
         └─────┬──────┘
-              │ API Rust
-        ┌─────┴──────┐   adapter sortant C (vtable, catch_unwind)
+              │ Rust API
+        ┌─────┴──────┐   outbound C adapter (vtable, catch_unwind)
         │ cpm-ffi    │ ─────────────────────────────► liblinphone (C/C++)
         │ (cbindgen) │
         └────────────┘
 ```
 
-Règles :
+Rules:
 
-- les **ports** (traits) vivent dans `cpm-core::ports` ; `cpm-core` ne dépend que de
-  serde/thiserror/chrono/uuid — aucune I/O, aucun `unsafe` ;
+- the **ports** (traits) live in `cpm-core::ports`; `cpm-core` depends only on
+  serde/thiserror/chrono/uuid — no I/O, no `unsafe`;
 - `rest-json` is a compile-time-only proc-macro dependency of `cpm-core`
   (`#[rest_json]` serde policy): no runtime dependency, no `unsafe`, so
   `cpm-core` stays pure (no I/O at runtime);
-- chaque **adapter** implémente un port dans son propre crate (`cpm-nms`, `cpm-imap`) ;
-- aucun panic ne traverse une frontière d'adapter : `Result<T, CpmError>` partout ;
-- un seul point d'HTTP par adapter (centralisé dans son `http.rs`), config immutable
-  passée au constructeur (pas de lecture d'env dans la lib) ;
-- les ports fournis par l'hôte (`MessageStorage`, `SyncStateStore`) sont exposés en C
-  via une **vtable de function pointers** dans `cpm-ffi` (cbindgen ne la génère pas seul).
+- each **adapter** implements a port in its own crate (`cpm-nms`, `cpm-imap`);
+- no panic crosses an adapter boundary: `Result<T, CpmError>` everywhere;
+- a single HTTP entry point per adapter (centralized in its `http.rs`), immutable
+  config passed to the constructor (no env reads inside the library);
+- the host-provided ports (`MessageStorage`, `SyncStateStore`) are exposed to C
+  via a **vtable of function pointers** in `cpm-ffi` (cbindgen does not generate it
+  on its own).
 
 ## Crates
 
-| Crate        | Rôle                                                                                                                                                                                                   | Type                    |
+| Crate        | Role                                                                                                                                                                                                   | Type                    |
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------- |
-| `cpm-core`   | Modèle de données NMS/CPM + **ports** (`StoreBackend`, `MessageStorage`, `SyncStateStore`), `CpmError`, `SyncState`, mapping `objectId ↔ id local`.                                                    | domain, pur             |
-| `cpm-msg`    | Port `MessageCodec` + impl CPIM (`message/CPIM`, RFC 3862) / MIME multipart ; mapping payload ↔ conversation de l'intégrateur.                                                                         | codec                   |
-| `cpm-nms`    | **Adapter REST** : implémente `StoreBackend` sur REST_NetAPI_NMS (auth, boxes, dossiers, objets CRUD/bulk/payload/flags, subscriptions, notifications, strict sync). `http.rs` centralise tout l'HTTP. | adapter entrant (V1)    |
-| `cpm-imap`   | **Adapter IMAP** : implémente `StoreBackend` sur `OMA-TS-CPM_Message_Store-V2_2` (créé en phase 7).                                                                                                    | adapter entrant (ph. 7) |
-| `cpm-client` | Moteur de synchro **binding-agnostic** : first-time + steady-state (strict sync §6.3), orchestre `StoreBackend` + `MessageStorage` + `SyncStateStore` + `MessageCodec`. Ne stocke rien.                | orchestration           |
-| `cpm-ffi`    | **Adapter C sortant** : API C pour liblinphone (cbindgen, `cdylib`/`staticlib`), vtable des ports hôte, runtime tokio global (`OnceLock`), `catch_unwind` à la frontière. Seul crate avec `unsafe`.    | adapter sortant         |
+| `cpm-core`   | NMS/CPM data model + **ports** (`StoreBackend`, `MessageStorage`, `SyncStateStore`), `CpmError`, `SyncState`, `objectId ↔ local id` mapping.                                                           | domain, pure            |
+| `cpm-msg`    | `MessageCodec` port + CPIM implementation (`message/CPIM`, RFC 3862) / MIME multipart; payload ↔ integrator conversation mapping.                                                                      | codec                   |
+| `cpm-nms`    | **REST adapter**: implements `StoreBackend` over REST_NetAPI_NMS (auth, boxes, folders, object CRUD/bulk/payload/flags, subscriptions, notifications, strict sync). `http.rs` centralizes all HTTP.    | inbound adapter (V1)    |
+| `cpm-imap`   | **IMAP adapter**: implements `StoreBackend` over `OMA-TS-CPM_Message_Store-V2_2` (created in phase 7).                                                                                                 | inbound adapter (ph. 7) |
+| `cpm-client` | **Binding-agnostic** sync engine: first-time + steady-state (strict sync §6.3), orchestrates `StoreBackend` + `MessageStorage` + `SyncStateStore` + `MessageCodec`. Stores nothing.                    | orchestration           |
+| `cpm-ffi`    | **Outbound C adapter**: C API for liblinphone (cbindgen, `cdylib`/`staticlib`), vtable of the host ports, global tokio runtime (`OnceLock`), `catch_unwind` at the boundary. Only crate with `unsafe`. | outbound adapter        |
 | `rest-json`  | In-workspace proc-macro `#[rest_json]`: container-level serde policy for the REST/JSON wire (emits plain `#[serde(...)]`; acronyms, renames, skip-on-None). Compile-time only.                         | macro (compile-time)    |
 
-## Décisions (ADR)
+## Decisions (ADR)
 
-- **D1 — Le binding est un adapter, pas un choix du core.** Le port `StoreBackend`
-  définit les opérations du message store (dossiers, objets, payloads, flags,
-  subscriptions, notifications, sync). Adapter par défaut en V1 : **REST**
-  (`cpm-nms`) ; adapter IMAP (`cpm-imap`) en phase 7. La spec de base
-  `OMA-TS-REST_NetAPI_NMS` est embarquée et QA'ée (2026-11-08). **Critère
-  d'inversion** : un déploiement NMS nommé n'exposant que l'IMAP → l'IMAP devient
-  l'adapteur par défaut.
-- **D2 — Licence Apache-2.0.** Compatible GPLv3/AGPL → intégrable dans
-  linphone-sdk tout en restant réutilisable ailleurs.
-- **D3 — La bibliothèque ne stocke rien.** Deux ports fournis par l'hôte :
-  `MessageStorage` (messages + mapping `objectId ↔ id local`) et `SyncStateStore`
-  (blob `SyncState` sérialisable en JSON — `restartToken`/`lastModSeq`/curseurs —
-  stocké en **une seule clé** par l'hôte, ex. SQLite Linphone). `cpm-client`
-  orchestre via ces ports.
-- **D4 — Workspace `crates/*`, dépendances centralisées** dans
-  `[workspace.dependencies]`, MSRV 1.85, édition 2024.
+- **D1 — The binding is an adapter, not a core choice.** The `StoreBackend` port
+  defines the message store operations (folders, objects, payloads, flags,
+  subscriptions, notifications, sync). Default adapter in V1: **REST**
+  (`cpm-nms`); IMAP adapter (`cpm-imap`) in phase 7. The base spec
+  `OMA-TS-REST_NetAPI_NMS` is embedded and QA'd (2026-11-08). **Inversion
+  criterion**: if a named NMS deployment exposes only IMAP → IMAP becomes
+  the default adapter.
+- **D2 — Apache-2.0 license.** Compatible with GPLv3/AGPL → can be integrated into
+  linphone-sdk while remaining reusable elsewhere.
+- **D3 — The library stores nothing.** Two host-provided ports:
+  `MessageStorage` (messages + `objectId ↔ local id` mapping) and `SyncStateStore`
+  (a `SyncState` blob serializable to JSON — `restartToken`/`lastModSeq`/cursors —
+  stored in a **single key** by the host, e.g. Linphone's SQLite). `cpm-client`
+  orchestrates through these ports.
+- **D4 — Workspace `crates/*`, centralized dependencies** in
+  `[workspace.dependencies]`, MSRV 1.85, edition 2024.
   Compile-time exception: `rest-json` (proc-macro `#[rest_json]`, the container
   serde policy of the REST/JSON wire — camelCase `rename_all` + acronyms +
   skip-on-None, emitted as plain `#[serde(...)]` attributes). `syn`/`quote`/
   `proc-macro2` are already in the lockfile via `serde_derive`: no new crate
   enters the dependency graph (cargo-deny/MSRV unchanged).
-- **D5 — FFI en C via cbindgen** (`cdylib` + `staticlib`). **Contrat FFI à écrire
-  avant la phase 6** : runtime tokio global possédé par `cpm-ffi` via `OnceLock`
-  (créé à l'init, jamais recréé par appel) ; vtable C explicite des ports hôte ;
-  `catch_unwind` systématique à la frontière ; aucun panic ne traverse l'ABI.
-- **D6 — JSON uniquement côté REST.** Le SCR serveur rend le JSON Mandatory ;
-  le XML est Optional — non supporté en V1.
-- **D7 — Chiffrement E2E hors scope V1.** La bibliothèque transporte des payloads
-  **opaques** ; le chiffrement de bout en bout (E2EE RCS) est une couche applicative
-  au-dessus du message store. Garde des clés et effacement/GDPR côté serveur sont du
-  ressort du déploiement, à documenter côté intégration.
-- **D8 — Sync « server-authoritative ».** `restartToken`/`lastModSeq` font foi ; en
-  cas de conflit de flags, le serveur gagne (dernier `lastModSeq`). Les changements
-  locaux sont uploadés (first-time / steady-state). La **migration d'historique**
-  Linphone = first-time sync + remplissage du mapping via `MessageStorage`.
-- **D9 — Publication : le code est publiable, pas les specs OMA.** Le code de
-  cpm-store (Apache-2.0, œuvre originale) peut être publié en open source librement.
-  En revanche les documents OMA (PDF, conversions markdown, images, fixtures
-  extraits des annexes) sont sous copyright OMA — usage interne/éducatif uniquement,
-  redistribution soumise à permission écrite (Use Agreement omaspecworks.org) :
-  ils sont gitignorés et récupérés localement via `tools/specs_fetch.py` (voir
-  `docs/specs/README.md`, section « Publication »). Deuxième condition avant toute
-  intégration dans linphone-sdk : validation juridique de la compatibilité
-  Apache-2.0 ↔ AGPLv3 au linkage statique (combined work, clause brevet, §13 AGPL,
-  versioning ABI C) — action externe, ne bloque pas la publication du code.
-- **D10 — Interop : aucun serveur NMS/CPM open-source n'existe** (recherche
-  2026-11-08). Critère de conformité = annexes des specs (golden tests extraits du
-  PDF) + `wiremock` ; l'interop contre un vrai serveur se fera quand un déploiement
-  NMS sera nommé par l'équipe d'intégration.
+- **D5 — FFI in C via cbindgen** (`cdylib` + `staticlib`). **The FFI contract must
+  be written before phase 6**: global tokio runtime owned by `cpm-ffi` via `OnceLock`
+  (created at init, never recreated per call); explicit C vtable of the host ports;
+  systematic `catch_unwind` at the boundary; no panic crosses the ABI.
+- **D6 — JSON only on the REST side.** The server-side SCR makes JSON Mandatory;
+  XML is Optional — not supported in V1.
+- **D7 — E2E encryption out of scope for V1.** The library carries **opaque**
+  payloads; end-to-end encryption (E2EE RCS) is an application layer on top of the
+  message store. Key custody and erasure/GDPR on the server side are the
+  deployment's responsibility, to be documented on the integration side.
+- **D8 — "Server-authoritative" sync.** `restartToken`/`lastModSeq` are
+  authoritative; in case of a flag conflict, the server wins (last `lastModSeq`).
+  Local changes are uploaded (first-time / steady-state). Linphone **history
+  migration** = first-time sync + filling the mapping via `MessageStorage`.
+- **D9 — Publication: the code is publishable, not the OMA specs.** The cpm-store
+  code (Apache-2.0, original work) can be published as open source freely.
+  However, the OMA documents (PDFs, markdown conversions, images, fixtures
+  extracted from the appendices) are under OMA copyright — internal/educational use
+  only, redistribution requires written permission (Use Agreement omaspecworks.org):
+  they are gitignored and fetched locally via `tools/specs_fetch.py` (see
+  `docs/specs/README.md`, "Publication" section). A second condition before any
+  integration into linphone-sdk: legal validation of Apache-2.0 ↔ AGPLv3
+  compatibility under static linking (combined work, patent clause, AGPL §13,
+  C ABI versioning) — external action, does not block publishing the code.
+- **D10 — Interop: no open-source NMS/CPM server exists** (research
+  2026-11-08). Conformance criterion = spec appendices (golden tests extracted from
+  the PDF) + `wiremock`; interop against a real server will happen when an NMS
+  deployment is named by the integration team.
 
-## Gestion des erreurs
+## Error handling
 
-`cpm-core::CpmError` est l'erreur commune. Chaque crate peut l'enrichir, mais toute
-erreur publique doit pouvoir se convertir en `CpmError`. Pas de panic sur des données
-serveur invalides : elles deviennent `CpmError::Parse` / `CpmError::Server`. Aucune
-erreur ne traverse une frontière d'adapter autrement que par `Result`.
+`cpm-core::CpmError` is the common error. Each crate may extend it, but every
+public error must be convertible into `CpmError`. No panic on invalid server
+data: it becomes `CpmError::Parse` / `CpmError::Server`. No error crosses an
+adapter boundary other than through `Result`.
 
-## Synchronisation (cpm-client)
+## Synchronization (cpm-client)
 
-Implémentation de la **strict synchronization** (spec §5.5, §6.3), binding-agnostic :
+Implementation of **strict synchronization** (spec §5.5, §6.3), binding-agnostic:
 
-1. **First-time sync** : download de tout l'existant via `StoreBackend` + upload du
-   local manquant ; remplissage du mapping via `MessageStorage`.
-2. **Steady-state sync** : subscription aux notifications + polling, traitement des
-   changements via `restartToken` / `lastModSeq` (persistés via `SyncStateStore`),
-   corrélation avec le cache local. En cas d'erreur irrécupérable : repli sur un
+1. **First-time sync**: download of everything existing via `StoreBackend` + upload
+   of missing local data; filling the mapping via `MessageStorage`.
+2. **Steady-state sync**: subscription to notifications + polling, processing
+   changes via `restartToken` / `lastModSeq` (persisted via `SyncStateStore`),
+   correlation with the local cache. On an unrecoverable error: fall back to a
    first-time sync (spec §6.3.3.2).
 
 ## Tests
 
-- Unitaires par module.
-- Intégration : `wiremock` mocke le serveur NMS au niveau transport (endpoints
-  `/nms/v1/...`), jamais les méthodes internes de l'adapter.
-- Golden fixtures : exemples JSON/MIME des annexes C–H, **extraits du PDF officiel**
-  (`pdftotext`).
-- Conformance : chaque SCR de `docs/conformance.md` a son test.
+- Unit tests per module.
+- Integration: `wiremock` mocks the NMS server at the transport level (endpoints
+  `/nms/v1/...`), never the adapter's internal methods.
+- Golden fixtures: JSON/MIME examples from appendices C–H, **extracted from the
+  official PDF** (`pdftotext`).
+- Conformance: each SCR in `docs/conformance.md` has its test.
 
-## Dépendances
+## Dependencies
 
-Toutes les versions sont épinglées dans `[workspace.dependencies]` du `Cargo.toml`
-racine. Pas de dépendance directe hors workspace. TLS via rustls. Licences +
-advisories vérifiées en CI par `cargo-deny` (`deny.toml`).
+All versions are pinned in the root `Cargo.toml`'s `[workspace.dependencies]`.
+No direct dependency outside the workspace. TLS via rustls. Licenses +
+advisories checked in CI by `cargo-deny` (`deny.toml`).
 
-## Revue LLM council (2026-11-08)
+## LLM council review (2026-11-08)
 
-5 conseillers + peer review anonymisée + chairman (transcription :
-`reports/council-phase0-transcript.md`, visuel : `reports/council-phase0.html`,
-skill `llm-council`). Validé : D2, D4, D6 ; D1 (via port/adapter) ; D3 re-scopé en
-ports ; D5 avec contrat FFI.
+5 advisors + anonymized peer review + chairman (transcript:
+`reports/council-phase0-transcript.md`, visual: `reports/council-phase0.html`,
+skill `llm-council`). Validated: D2, D4, D6; D1 (via port/adapter); D3 re-scoped as
+ports; D5 with the FFI contract.
 
-### Zones d'ombre du council → résolution
+### Council gray areas → resolution
 
-| Zone d'ombre                                           | Résolution                                                                                                                                      | Où            |
-| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
-| Clash D1 REST vs IMAP                                  | port `StoreBackend` + adapters (`cpm-nms` REST par défaut, `cpm-imap` ph. 7) ; inversion si déploiement IMAP-only nommé                         | D1, D10       |
-| Qui possède l'état de synchro                          | `SyncStateStore` (blob, 1 clé hôte) + `MessageStorage` (messages/mapping) ; `cpm-client` orchestre                                              | D3            |
-| Droits OMA / publication publique                      | usage interne OK, redistribution = permission écrite OMA → **code publiable**, specs/fixtures gitignorés + fetch local (`tools/specs_fetch.py`) | D9            |
-| Juridique Apache-2.0 ↔ AGPLv3 au linkage               | action externe (juriste) avant intégration linphone-sdk ; repo privé entre-temps                                                                | D9            |
-| Chiffrement E2E / garde des clés / GDPR                | hors scope V1 — payloads opaques, E2E = couche applicative                                                                                      | D7            |
-| Mobile : taille binaire, batterie, CI NDK vs MSRV 1.85 | check en phase 6 ; MSRV ajustable si les vieux builders NDK bloquent                                                                            | roadmap ph. 6 |
-| Conflits multi-appareils + migration historiques       | server-authoritative (serveur gagne), migration = first-time sync + mapping                                                                     | D8            |
-| Serveur NMS / qui pilote l'intégration                 | aucun serveur NMS public ; conformité = annexes + wiremock ; déploiement à nommer par l'équipe d'intégration                                    | D10           |
+| Gray area                                         | Resolution                                                                                                                                        | Where         |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| D1 clash REST vs IMAP                             | `StoreBackend` port + adapters (`cpm-nms` REST by default, `cpm-imap` ph. 7); switch if a named IMAP-only deployment appears                      | D1, D10       |
+| Who owns the sync state                           | `SyncStateStore` (blob, 1 host key) + `MessageStorage` (messages/mapping); `cpm-client` orchestrates                                              | D3            |
+| OMA rights / public release                       | internal use OK, redistribution = written OMA permission → **code publishable**, specs/fixtures gitignored + local fetch (`tools/specs_fetch.py`) | D9            |
+| Legal Apache-2.0 ↔ AGPLv3 at link time            | external action (legal counsel) before linphone-sdk integration; repo private in the meantime                                                     | D9            |
+| E2E encryption / key custody / GDPR               | out of scope for V1 — opaque payloads, E2E = application layer                                                                                    | D7            |
+| Mobile: binary size, battery, NDK CI vs MSRV 1.85 | check in phase 6; MSRV adjustable if older NDK builders block it                                                                                  | roadmap ph. 6 |
+| Multi-device conflicts + history migration        | server-authoritative (server wins), migration = first-time sync + mapping                                                                         | D8            |
+| NMS server / who drives the integration           | no public NMS server; conformance = appendices + wiremock; deployment to be named by the integration team                                         | D10           |

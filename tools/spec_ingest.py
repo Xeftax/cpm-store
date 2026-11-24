@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
-"""Ingeste les PDF officiels des specs OMA CPM en markdown structuré via l'API Mistral OCR.
+"""Ingests the official OMA CPM spec PDFs into structured markdown via the Mistral OCR API.
 
-Pourquoi : les copies markdown actuelles (docs/specs/*.md) viennent d'une
-conversion tierce (Xeftax/cpm-rag) avec pertes connues (hierarchie aplatie,
-tableaux deformes, images perdues). Mistral OCR preserve la structure
-(titres, sections, tableaux) et extrait les images.
+Why: the current markdown copies (docs/specs/*.md) come from a third-party
+conversion (Xeftax/cpm-rag) with known losses (flattened hierarchy, mangled
+tables, lost images). Mistral OCR preserves the structure (headings, sections,
+tables) and extracts the images.
 
-Usage :
+Usage:
     MISTRAL_API_KEY=... python3 tools/spec_ingest.py \
-        --pdf-dir /tmp/cpm-research/pdf --out-dir docs/specs/ocr [--only NOM]
+        --pdf-dir /tmp/cpm-research/pdf --out-dir docs/specs/ocr [--only NAME]
 
-Sortie : docs/specs/ocr/<SPEC>/full.md, docs/specs/ocr/<SPEC>/images/*,
-         docs/specs/ocr/<SPEC>/meta.json (modele, nb pages, usage API)
+Output: docs/specs/ocr/<SPEC>/full.md, docs/specs/ocr/<SPEC>/images/*,
+        docs/specs/ocr/<SPEC>/meta.json (model, page count, API usage)
 
-Alternative open-source locale si pas de cle API : docling (IBM)
+Local open-source alternative when no API key is available: docling (IBM)
     uvx --from docling docling convert <pdf> --to md --image-export-mode placeholder
 """
 
@@ -61,7 +61,7 @@ class _MistralClient(Protocol):
 
 
 def ocr_pdf(client: _MistralClient, pdf_path: Path) -> _OcrResponse:
-    """Envoie le PDF à l'API Mistral OCR, nettoie l'upload, retourne la réponse OCR."""
+    """Send the PDF to the Mistral OCR API, clean up the upload, return the OCR response."""
     with pdf_path.open("rb") as f:
         uploaded = client.files.upload(file={"file_name": pdf_path.name, "content": f})
     signed = client.files.get_signed_url(file_id=uploaded.id)
@@ -75,19 +75,19 @@ def ocr_pdf(client: _MistralClient, pdf_path: Path) -> _OcrResponse:
 
 
 def main() -> int:
-    """Point d'entrée : OCR de chaque PDF du --pdf-dir vers --out-dir."""
+    """Entry point: OCR every PDF in --pdf-dir into --out-dir."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--pdf-dir", required=True)
     ap.add_argument("--out-dir", required=True)
-    ap.add_argument("--only", default=None, help="ne traiter qu'un PDF (substring du nom)")
+    ap.add_argument("--only", default=None, help="ne traiter qu'one PDF (name substring)")
     args = ap.parse_args()
 
     if not os.environ.get("MISTRAL_API_KEY"):
-        print("ERREUR: MISTRAL_API_KEY non definie", file=sys.stderr)
+        print("ERROR: MISTRAL_API_KEY not set", file=sys.stderr)
         return 2
 
-    # import lazy via importlib : mistralai est une dépendance optionnelle (hors pyproject),
-    # le module doit rester importable sans elle (smoke tests).
+    # lazy import via importlib: mistralai is an optional dependency (not in pyproject),
+    # the module must stay importable without it (smoke tests).
     mistralai_mod = importlib.import_module("mistralai")
     client: _MistralClient = vars(mistralai_mod)["Mistral"](api_key=os.environ["MISTRAL_API_KEY"])
     pdf_dir, out_dir = Path(args.pdf_dir), Path(args.out_dir)
@@ -95,11 +95,11 @@ def main() -> int:
     if args.only:
         pdfs = [p for p in pdfs if args.only in p.name]
     if not pdfs:
-        print("Aucun PDF trouve", file=sys.stderr)
+        print("No PDF found", file=sys.stderr)
         return 1
 
     for pdf in pdfs:
-        print(f"OCR de {pdf.name} ...", flush=True)
+        print(f"OCR of {pdf.name} ...", flush=True)
         resp = ocr_pdf(client, pdf)
         dest = out_dir / pdf.stem
         (dest / "images").mkdir(parents=True, exist_ok=True)

@@ -2,7 +2,7 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "review-check (watch — auto à l'open, re-lint on save)",
+      "label": "review-check (watch — auto on open, re-lint on save)",
       "type": "shell",
       "command": "cd tools/review-check && cargo build --release -q && cd ../.. && ./tools/review-check/target/release/review-check --format=gcc --watch",
       "isBackground": true,
@@ -28,7 +28,7 @@
       "presentation": { "reveal": "silent", "panel": "dedicated", "clear": false }
     },
     {
-      "label": "review-check (diff branche courante vs main, manuel)",
+      "label": "review-check (current branch vs main diff, manual)",
       "type": "shell",
       "command": "cd tools/review-check && cargo build --release -q && cd ../.. && ./tools/review-check/target/release/review-check --format=gcc main HEAD",
       "problemMatcher": {
@@ -47,7 +47,7 @@
       "presentation": { "reveal": "always", "panel": "shared", "clear": true }
     },
     {
-      "label": "review-check --all (audit complet, manuel)",
+      "label": "review-check --all (full audit, manual)",
       "type": "shell",
       "command": "cd tools/review-check && cargo build --release -q && cd ../.. && ./tools/review-check/target/release/review-check --format=gcc --all",
       "problemMatcher": {

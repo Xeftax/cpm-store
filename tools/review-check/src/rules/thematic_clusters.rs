@@ -1,11 +1,11 @@
-//! Règle `thematic-clusters` : le sémantique « qui va ensemble » = le graphe d'appels
-//! intra-fichier. Chaque fonction qui appelle une autre fonction du même fichier crée
-//! une arête ; les composantes connexes (union-find) de taille >= 3 forment des groupes
-//! thématiques. Un groupe sans bannière `// ====` au-dessus de son premier membre
-//! manque de section -> violation.
+//! Rule `thematic-clusters`: the semantics of "what goes together" = the intra-file
+//! call graph. Every function that calls another function of the same file creates
+//! an edge; connected components (union-find) of size >= 3 form thematic
+//! groups. A group without a `// ====` banner above its first member
+//! lacks a section -> violation.
 //!
-//! Ex: get -> values -> first_value -> message_context/direction = un cluster "lookup
-//! + accesseurs typés" (attribute.rs, PR #3).
+//! Ex: get -> values -> first_value -> message_context/direction = one "lookup
+//! + typed accessors" cluster (attribute.rs, PR #3).
 
 use super::{fns, impl_methods, line_of, Candidate, Rule};
 use std::collections::HashMap;
@@ -21,7 +21,7 @@ impl Rule for ThematicClusters {
     }
 
     fn candidates(&self, ast: &syn::File, src: &str) -> Vec<Candidate> {
-        // 1. toutes les fonctions du fichier : nom -> ligne
+        // 1. all functions of the file: name -> line
         let mut fn_lines: HashMap<String, usize> = HashMap::new();
         for f in fns(ast) {
             fn_lines.insert(f.sig.ident.to_string(), line_of(&f.sig.ident));
@@ -30,7 +30,7 @@ impl Rule for ThematicClusters {
             fn_lines.insert(m.sig.ident.to_string(), line_of(&m.sig.ident));
         }
 
-        // 2. arêtes caller -> callee (appels résolus vers des fns du même fichier)
+        // 2. caller -> callee edges (calls resolved to fns of the same file)
         let mut uf = UnionFind::new(&fn_lines);
         let mut visit_fn = |block: &syn::Block, caller: &str| {
             let mut c = CallCollector { calls: Vec::new() };
@@ -48,7 +48,7 @@ impl Rule for ThematicClusters {
             visit_fn(&m.block, &m.sig.ident.to_string());
         }
 
-        // 3. composantes connexes de taille >= MIN_CLUSTER
+        // 3. connected components of size >= MIN_CLUSTER
         let clusters = uf.components(MIN_CLUSTER);
         let src_lines: Vec<&str> = src.lines().collect();
         clusters
@@ -59,7 +59,7 @@ impl Rule for ThematicClusters {
                     .map(|n: &String| fn_lines[n])
                     .min()
                     .unwrap_or(1);
-                // bannière de section dans les 5 lignes précédant le premier membre ?
+                // section banner in the 5 lines preceding the first member?
                 let has_banner = (first_line.saturating_sub(5)..first_line)
                     .filter_map(|i: usize| i.checked_sub(1).and_then(|j: usize| src_lines.get(j)))
                     .any(|l: &&str| super::is_section_banner(l));
@@ -72,7 +72,7 @@ impl Rule for ThematicClusters {
     }
 }
 
-/// Collecte les noms appelés (méthodes + fonctions) dans un bloc.
+/// Collects the names called (methods + functions) in a block.
 struct CallCollector {
     calls: Vec<String>,
 }
@@ -92,7 +92,7 @@ impl<'ast> Visit<'ast> for CallCollector {
     }
 }
 
-/// Union-find sur les noms de fonctions.
+/// Union-find over function names.
 struct UnionFind {
     parent: HashMap<String, String>,
 }

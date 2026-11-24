@@ -1,6 +1,6 @@
-//! Registre des règles du linter. Une règle = un périmètre d'items AST + un statut
-//! (violation/conforme). L'enregistrement est factorisé ici : ajouter une règle =
-//! un fichier dans `rules/` + une ligne dans `all()`.
+//! Registry of the linter rules. A rule = a scope of AST items + a status
+//! (violation/compliant). Registration is factored here: adding a rule =
+//! one file in `rules/` + one line in `all()`.
 
 pub mod closure_params_typed;
 pub mod delegate_same_name;
@@ -16,7 +16,7 @@ pub mod thematic_clusters;
 use syn::spanned::Spanned;
 use syn::{ImplItem, Item, ItemFn, ItemImpl, ItemStruct};
 
-/// Un item candidat, avec son statut.
+/// A candidate item, with its status.
 #[derive(Debug)]
 pub struct Candidate {
     pub line: usize,
@@ -25,12 +25,12 @@ pub struct Candidate {
 
 pub trait Rule {
     fn id(&self) -> &'static str;
-    /// Tout le périmètre de la règle (conforme + violation) — sert au mode --audit.
-    /// `src` = source du fichier (pour les règles qui lisent les commentaires, ex. sections).
+    /// The whole scope of the rule (compliant + violation) — used by the --audit mode.
+    /// `src` = source of the file (for rules that read comments, e.g. sections).
     fn candidates(&self, ast: &syn::File, src: &str) -> Vec<Candidate>;
 }
 
-/// Registre unique des règles.
+/// Single registry of the rules.
 pub fn all() -> Vec<Box<dyn Rule>> {
     vec![
         Box::new(closure_params_typed::ClosureParamsTyped),
@@ -46,14 +46,14 @@ pub fn all() -> Vec<Box<dyn Rule>> {
     ]
 }
 
-// ── Helpers d'itération sur l'AST (factorisation des match génériques) ──────
+// ── AST iteration helpers (factoring of the generic matches) ──────
 
 pub fn line_of<T: Spanned>(n: &T) -> usize {
     n.span().start().line
 }
 
-/// Bannière de section reconnue : `// ==== Titre ====` (section) ou
-/// `// ---- Titre ----` (sous-section) — 3+ signes identiques après `// `.
+/// Recognized section banner: `// ==== Title ====` (section) or
+/// `// ---- Title ----` (sub-section) — 3+ identical signs after `// `.
 pub fn is_section_banner(l: &str) -> bool {
     let t = l.trim_start();
     t.starts_with("// ===") || t.starts_with("// ---")
@@ -106,13 +106,13 @@ mod tests {
     fn newtype_pub_detects_pub_field_only() {
         let r = newtype_pub::NewtypePub;
         assert_eq!(violations(&r, "pub struct A(pub Vec<u8>);"), vec![1]);
-        // conforme : champ privé
+        // compliant: private field
         let ast = syn::parse_file("struct B(Vec<u8>);").unwrap();
         assert!(r
             .candidates(&ast, "struct B(Vec<u8>);")
             .iter()
             .all(|c| !c.violation));
-        // hors périmètre : struct nommée
+        // out of scope: named struct
         assert!(r
             .candidates(
                 &syn::parse_file("struct C { x: u8 }").unwrap(),
@@ -127,7 +127,7 @@ mod tests {
         assert_eq!(violations(&r, "fn f() { struct H { x: u8 } }"), vec![1]);
         assert!(violations(&r, "fn g() {}").is_empty());
         assert!(violations(&r, "struct Top;").is_empty());
-        // le Helper peut aussi vivre dans une méthode d'impl (cas attribute.rs PR #3)
+        // the Helper can also live in an impl method (attribute.rs case, PR #3)
         assert_eq!(
             violations(&r, "impl A { fn f() { struct H { x: u8 } } }"),
             vec![1]
@@ -142,14 +142,14 @@ mod tests {
             violations(&r, "impl<'de> Deserialize<'de> for A {}"),
             vec![1]
         );
-        // impl de trait non-serde : hors périmètre
+        // non-serde trait impl: out of scope
         assert!(violations(&r, "impl std::fmt::Debug for A {}").is_empty());
     }
 
     #[test]
     fn duplicate_fn_bodies_flags_same_shape() {
         let r = duplicate_fn_bodies::DuplicateFnBodies;
-        // message_context / direction : même corps à NOM/type près -> 2 violations
+        // message_context / direction: same body up to NAME/type -> 2 violations
         let src = r#"
 impl AttributeList {
     fn message_context(&self) -> Option<MessageContext> {
@@ -162,11 +162,7 @@ impl AttributeList {
 }
 "#;
         let v = violations(&r, src);
-        assert_eq!(
-            v.len(),
-            2,
-            "les deux fns dupliquées doivent être flaguées: {v:?}"
-        );
+        assert_eq!(v.len(), 2, "both duplicated fns must be flagged: {v:?}");
     }
 
     #[test]
@@ -188,7 +184,7 @@ impl AttributeList {
     #[test]
     fn thematic_clusters_group_call_chains() {
         let r = thematic_clusters::ThematicClusters;
-        // get -> values -> first_value -> message_context : une chaîne = un cluster de 4
+        // get -> values -> first_value -> message_context: one chain = one cluster of 4
         let src = r#"
 impl L {
     fn get(&self, n: &str) -> Option<u8> { self.0.iter().find(|a| *a == 1) }
@@ -200,12 +196,9 @@ impl L {
 "#;
         let ast = syn::parse_file(src).unwrap();
         let c = r.candidates(&ast, src);
-        assert_eq!(c.len(), 1, "un seul cluster de taille >= 3: {c:?}");
-        assert!(
-            c[0].violation,
-            "pas de bannière // ==== au-dessus -> violation"
-        );
-        // avec une bannière au-dessus -> conforme (section // ==== ou sous-section // ----)
+        assert_eq!(c.len(), 1, "a single cluster of size >= 3: {c:?}");
+        assert!(c[0].violation, "no // ==== banner above -> violation");
+        // with a banner above -> compliant (// ==== section or // ---- sub-section)
         let with_banner = format!("// ==== Lookup ====\n{src}");
         let ast2 = syn::parse_file(&with_banner).unwrap();
         assert!(r
@@ -217,10 +210,10 @@ impl L {
     #[test]
     fn main_rs_thin_flags_definitions_in_main() {
         let r = main_rs_thin::MainRsThin;
-        // violation : struct + impl dans main.rs
+        // violation: struct + impl in main.rs
         let src = "mod x;\nfn main() {}\nstruct Config { a: u8 }\nimpl Config {}\n";
         assert_eq!(violations(&r, src).len(), 2);
-        // conforme : CLI mince (mod + fn main uniquement)
+        // compliant: thin CLI (mod + fn main only)
         let ok = "mod checker;\nfn main() {}\n";
         assert!(violations(&r, ok).is_empty());
     }
@@ -346,18 +339,18 @@ struct W {
     #[test]
     fn delegate_detects_same_name_method_call_only() {
         let r = delegate_same_name::DelegateSameName;
-        // violation : fn len(&self) { self.0.len() }  (même nom des deux côtés)
+        // violation: fn len(&self) { self.0.len() }  (same name on both sides)
         assert_eq!(
             violations(&r, "impl A { fn len(&self) -> usize { self.0.len() } }"),
             vec![1]
         );
-        // conforme : logique métier ajoutée
+        // compliant: added business logic
         assert!(violations(
             &r,
             "impl A { fn get(&self, n: &str) -> bool { self.0.contains(n) } }"
         )
         .is_empty());
-        // conforme : nom différent de l'appel interne
+        // compliant: name different from the inner call
         assert!(violations(&r, "impl A { fn size(&self) -> usize { self.0.len() } }").is_empty());
     }
 }

@@ -1,45 +1,45 @@
 # cpm-store's declaration, read on top of dockyard.base.toml: only what differs.
 
-# Repo 100% Rust, drive depuis Mistral Vibe. `languages = []` : dockyard.base.toml ne
-# connait pas "rust", et la liste vide (sous-ensemble valide) eteint d'un coup tous
-# les checks py/ts (language-bound) et tous les fichiers recus py/ts/node.
+# 100% Rust repo, driven from Mistral Vibe. `languages = []`: dockyard.base.toml does
+# not know "rust", and the empty list (a valid subset) switches off all py/ts
+# (language-bound) checks and all received py/ts/node files at once.
 [dockyard]
 languages = []
 
-# Repo perso (hors org Tetrixx-SG) : les workflows dockyard appellent les reusable
-# workflows Tetrixx-SG/dock-yard + les secrets d'une GitHub App de l'org, tous 404
-# depuis un compte perso. La CI est autonome dans .github/workflows/ci.yml (elle
-# appelle directement scripts/ci/*.sh).
+# Personal repo (outside the Tetrixx-SG org): the dockyard workflows call the reusable
+# Tetrixx-SG/dock-yard workflows + the secrets of an org GitHub App, all 404 from a
+# personal account. CI is self-contained in .github/workflows/ci.yml (it calls
+# scripts/ci/*.sh directly).
 [dockyard.decline]
-".github/workflows/" = "repo-specific: reusable workflows Tetrixx-SG/dock-yard + secrets App org inaccessibles depuis un compte perso (404) ; CI autonome dans .github/workflows/ci.yml"
-".pre-commit-config.yaml" = "repo-specific: hooks rust maison (lint-rust, security-rust) que le rendu 2g ne connait pas"
-"scripts/ci/version-bump*" = "repo-specific: outil node generique, inutile en repo 100% Rust"
+".github/workflows/" = "repo-specific: Tetrixx-SG/dock-yard reusable workflows + org App secrets unreachable from a personal account (404); self-contained CI in .github/workflows/ci.yml"
+".pre-commit-config.yaml" = "repo-specific: homegrown rust hooks (lint-rust, security-rust) unknown to the 2g rendering"
+"scripts/ci/version-bump*" = "repo-specific: generic node tool, useless in a 100% Rust repo"
 
-# Fichiers propres au repo (level 4), avec raison (contrat de dockyard.base.toml).
+# Repo-owned files (level 4), with reason (dockyard.base.toml contract).
 [dockyard.own]
-"Cargo.toml" = "repo-specific: workspace Rust (MSRV 1.85, edition 2024)"
-"deny.toml" = "repo-specific: cargo-deny pinne a la main pour le MSRV 1.85 (voir l'historique des commits)"
+"Cargo.toml" = "repo-specific: Rust workspace (MSRV 1.85, edition 2024)"
+"deny.toml" = "repo-specific: cargo-deny pinned by hand for MSRV 1.85 (see commit history)"
 
 [[dependabot]]
 ecosystem = "cargo"
 group = "rust"
 
-# Tout le dépôt appartient à Xeftax (repo perso solo). declare ici, rendu dans
-# .github/CODEOWNERS par `dockyard sync` — jamais d'edit manuel du fichier.
+# The whole repository belongs to Xeftax (solo personal repo). Declared here, rendered
+# in .github/CODEOWNERS by `dockyard sync` — never edit the file by hand.
 [[codeowner]]
 path = "*"
 owners = ["@Xeftax"]
-comment = "Repo perso solo : tout le dépôt appartient à Xeftax."
+comment = "Solo personal repo: the whole repository belongs to Xeftax."
 
-# Level A (platform). Diffère du standard dockyard sur trois points, because repo
-# perso solo (Xeftax) avec CI autonome :
-# - required-checks = les 6 jobs de .github/workflows/ci.yml (pas de job "verdict" dockyard) ;
-# - required-reviews = 0 et code-owner-reviews = false (contributeur unique : GitHub
-#   interdit l'auto-approve, donc exiger un code-owner review bloquerait tout) ;
-# - merge-queue = false (standard org ; inutile en solo).
-# Pose sur GitHub : branch protection main (6 checks requis, enforce_admins, linear
-# history, force-push et suppression bloques), allow_merge_commit=false,
-# vulnerability-alerts on, automated-security-fixes non pause.
+# Level A (platform). Differs from the dockyard standard on three points, because it is
+# a solo personal repo (Xeftax) with self-contained CI:
+# - required-checks = the 6+ jobs of .github/workflows/ci.yml (no dockyard "verdict" job);
+# - required-reviews = 0 and code-owner-reviews = false (single contributor: GitHub
+#   forbids self-approval, so requiring a code-owner review would block everything);
+# - merge-queue = false (org standard; useless solo).
+# Set on GitHub: branch protection on main (required checks, enforce_admins, linear
+# history, force-push and deletion blocked), allow_merge_commit=false,
+# vulnerability-alerts on, automated-security-fixes enabled.
 [platform]
 required-checks = [
   "build",

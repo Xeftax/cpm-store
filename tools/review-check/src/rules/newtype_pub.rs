@@ -1,5 +1,5 @@
-//! Règle `newtype-pub-with-delegation` : périmètre = tous les tuple structs ;
-//! violation si au moins un champ est `pub` (mélange transparent + encapsulé).
+//! Rule `newtype-pub-with-delegation`: scope = all tuple structs;
+//! violation if at least one field is `pub` (mix of transparent + encapsulated).
 
 use super::{structs, Candidate, Rule};
 use syn::{Fields, Visibility};

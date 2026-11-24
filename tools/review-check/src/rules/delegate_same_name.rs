@@ -1,6 +1,6 @@
-//! Règle `manual-delegation-methods` : périmètre = toutes les méthodes d'impl ;
-//! violation si le corps est un SEUL appel de méthode de MEME NOM sur le champ
-//! interne (`fn foo(&self) { self.x.foo(..) }`) — c'est Deref qui devrait le générer.
+//! Rule `manual-delegation-methods`: scope = every impl method;
+//! violation if the body is a SINGLE method call of the SAME NAME on the inner
+//! field (`fn foo(&self) { self.x.foo(..) }`) — Deref should generate it.
 
 use super::{impl_methods, line_of, Candidate, Rule};
 use syn::{Expr, Stmt};

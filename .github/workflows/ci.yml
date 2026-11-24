@@ -1,11 +1,11 @@
-# CI autonome de cpm-store (repo perso Xeftax, hors org Tetrixx-SG).
+# cpm-store's self-contained CI (Xeftax personal repo, outside the Tetrixx-SG org).
 #
-# Remplace les workflows dockyard : ceux-ci appellent les reusable workflows
-# Tetrixx-SG/dock-yard/.github/workflows/_*.yml@main + les secrets d'une GitHub App
-# de l'org, tous inaccessibles depuis un compte perso (404) -> runs en failure avec
-# 0 job. Ici les checks appellent directement scripts/ci/*.sh (déjà dans le repo).
-# Les workflows dockyard sont déclarés en `decline` dans dockyard.toml pour que
-# `dockyard sync` ne les réintroduise pas.
+# Replaces the dockyard workflows: those call the reusable workflows
+# Tetrixx-SG/dock-yard/.github/workflows/_*.yml@main + the secrets of an org GitHub App,
+# all unreachable from a personal account (404) -> runs fail with 0 jobs. Here the
+# checks call scripts/ci/*.sh directly (already in the repo).
+# The dockyard workflows are declared in `decline` in dockyard.toml so that
+# `dockyard sync` does not reintroduce them.
 name: CI
 
 on:
@@ -52,8 +52,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # fournit rustup ; msrv-rust.sh installe lui-même le toolchain épinglé (1.85)
       - uses: dtolnay/rust-toolchain@stable
+      # provides rustup; msrv-rust.sh installs the pinned toolchain (1.85) itself
       - run: scripts/ci/msrv-rust.sh
 
   security:
@@ -133,13 +133,13 @@ jobs:
     name: secret scan (gitleaks, binaire vérifié par le script)
     runs-on: ubuntu-latest
     steps:
-      # historique complet : secret-scan.sh scanne tous les commits
+      # full history: secret-scan.sh scans all commits
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - run: scripts/ci/secret-scan.sh
 
-  # --- domaine python (dockyard) ---
+  # --- python domain (dockyard) ---
 
   lint-python:
     name: lint-python (ruff check + format)

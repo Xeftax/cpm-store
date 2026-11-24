@@ -1,96 +1,96 @@
 ---
 name: review-memory-owner
-description: "OWNER de la mémoire de review de cpm-store (known-patterns : quoi noter, quelle sévérité, index des occurrences, hygiène du mécanisme). NE JAMAIS exécuter en direct : quand pertinent, spawn un subagent (Vibe: agents.spawn, instructions = ce fichier). Trigger when adding/changing a rule in .vibe/review/known-patterns.toml or the check script, or when a review comment reveals a new anti-pattern. MUST BE USED before setting any severity above warning and before indexing occurrences."
+description: "OWNER of the cpm-store review memory (known-patterns: what to record, which severity, indexing of occurrences, hygiene of the mechanism). NEVER run inline: when relevant, spawn a subagent (Vibe: agents.spawn, instructions = this file). Trigger when adding/changing a rule in .vibe/review/known-patterns.toml or the check script, or when a review comment reveals a new anti-pattern. MUST BE USED before setting any severity above warning and before indexing occurrences."
 user-invocable: false
 ---
 
 # review-memory-owner
 
-Owner du domaine « mémoire de review » : transformer les commentaires de PR passés en
-règles exécutables (known-patterns), sans bruit ni faux positifs. Cas d'école : PR #3
-(commentaires sur `attribute.rs` lignes 23/40/53 + récap) + council du 2026-11-14
+Owner of the "review memory" domain: turn past PR comments into executable rules
+(known-patterns), without noise or false positives. Reference case: PR #3
+(comments on `attribute.rs` lines 23/40/53 + recap) + council of 2026-11-14
 (5 advisors + 5 peer-reviews + chairman).
 
-## Rôle dual
+## Dual role
 
-- **Advise BEFORE** : « on a trouvé un anti-pattern » → quelle règle, quelle sévérité, quelles occurrences indexer.
-- **Review AFTER** : verdict contre les invariants.
+- **Advise BEFORE**: "we found an anti-pattern" -> which rule, which severity, which occurrences to index.
+- **Review AFTER**: verdict against the invariants.
 
-## Read first (à chaque invocation, jamais de mémoire)
+## Read first (on every invocation, never from memory)
 
-- `.vibe/review/known-patterns.toml` (quand il existe) + `scripts/review/check-known-patterns.sh`
-- Les skills-owners de domaine : `model-struct-owner`, `serde-mapping-owner`, `constructor-owner`
-- `docs/planning/review-strategy.md` (doc-station) — la pratique déterministe de référence
+- `.vibe/review/known-patterns.toml` (when it exists) + `scripts/review/check-known-patterns.sh`
+- The domain owner skills: `model-struct-owner`, `serde-mapping-owner`, `constructor-owner`
+- `docs/planning/review-strategy.md` (doc-station) — the reference deterministic practice
 
 ## Invariants — Do & Don't
 
-### quoi noter, et quand
+### what to record, and when
 
-- DO noter un anti-pattern **dès la 1ère occurrence** — rien n'empêche qu'il se représente.
-  (Seuil « signalé 2 fois » rejeté : la récurrence n'est pas un prérequis à la documentation.)
-- **ON NE SUPPRIME JAMAIS UNE RÈGLE.** Si elle ne marche plus : on l'édite/adapte (regex, scope),
-  ou on l'exclut par fichier via `exclude_files = [...]` dans le pattern (équivalent des
-  `#[allow(...)]` de lint), ou au pire soupape par ligne `// review: ignore <rule-id>`.
-  Une règle retirée du TOML perd son historique d'occurrences.
-- DO restreindre le `scope` à un seul fichier pendant une review progressive (ex. attribute.rs
-  d'abord, kind.rs ensuite) plutôt que de tout scope d'un coup et noyer de faux positifs.
-- **Un fichier ne va dans `exclude_files` qu'avec l'accord explicite de l'utilisateur.**
-  Par défaut on garde les warnings : ils disparaissent quand la règle ou les fichiers sont
-  fixés, pas en les cachant.
-- **La détection est du CODE déterministe, pas une regex ni de la prose** : chaque règle est
-  une fonction AST dans `tools/review-check` (parse `syn`, comme un lint clippy), exécutée
-  par le checker. Le TOML (`known-patterns.toml`) ne fournit que la config (id, scope,
-  severity, exclude_files, message, occurrences) + la DOC (`rule`, `applies_to`,
-  `when_not_applicable`, `bad_example`, `good_example`) pour le debug et la lecture LLM —
-  la doc ne remplace jamais la règle exécutable.
-- **Commencer LARGE, resserrer ensuite.** La règle AST matche le principe (ex. « tout newtype
-  à champ pub, quel que soit l'inner », « toute méthode `fn foo(&self) { self.x.foo(..) }` »),
-  pas un objet précis. On resserre au fil des exemples via `when_not_applicable`.
-- DO indexer **toutes les occurrences** (fichier:ligne ou commit de première apparition), pas ce
-  qui l'a remplacé : si la règle est modifiée/supprimée un jour, on doit pouvoir lister d'un coup
-  toutes les parties du code concernées et vérifier que le changement de règle est justifiable
-  partout, puis adapter chaque endroit à la nouvelle règle.
-- DON'T capitaliser les one-offs comme des gates (voir sévérité).
+- DO record an anti-pattern **from the 1st occurrence** — nothing prevents it from recurring.
+  ("Reported twice" threshold rejected: recurrence is not a prerequisite for documentation.)
+- **NEVER DELETE A RULE.** If it no longer works: edit/adapt it (regex, scope),
+  or exclude it per file via `exclude_files = [...]` in the pattern (equivalent of
+  `#[allow(...)]` lints), or at worst escape hatch per line `// review: ignore <rule-id>`.
+  A rule removed from the TOML loses its occurrence history.
+- DO restrict the `scope` to a single file during a progressive review (e.g. attribute.rs
+  first, kind.rs next) instead of scoping everything at once and drowning in false positives.
+- **A file goes into `exclude_files` only with the user's explicit agreement.**
+  By default keep the warnings: they disappear when the rule or the files are
+  fixed, not by hiding them.
+- **Detection is deterministic CODE, not a regex nor prose**: every rule is an
+  AST function in `tools/review-check` (parse with `syn`, like a clippy lint), executed
+  by the checker. The TOML (`known-patterns.toml`) only provides the config (id, scope,
+  severity, exclude_files, message, occurrences) + the DOC (`rule`, `applies_to`,
+  `when_not_applicable`, `bad_example`, `good_example`) for debugging and LLM reading —
+  the doc never replaces the executable rule.
+- **Start BROAD, tighten later.** The AST rule matches the principle (e.g. "any newtype
+  with a pub field, whatever the inner", "any method `fn foo(&self) { self.x.foo(..) }"`),
+  not one specific object. Tighten as examples come in via `when_not_applicable`.
+- DO index **all occurrences** (file:line or commit of first appearance), not what
+  replaced them: if the rule is changed/removed one day, we must be able to list in one shot
+  all the affected parts of the code and verify that the rule change is justifiable
+  everywhere, then adapt each place to the new rule.
+- DON'T turn one-offs into gates (see severity).
 
-### sévérité
+### severity
 
-- DO `severity = "warning"` pour **tout** pattern de style/design.
-- DON'T de hard gate sur un pattern de style : le reviewer est un LLM qui lit **tous** les
-  warnings (et peut faire des passes dédiées « regarde tous les warnings / fix-les tous »),
-  alors qu'un humain ignorerait les warnings. Imposer bloque et freine sans gain.
-- DO réserver le **bloquant au fonctionnel uniquement** : compilateur, tests, `clippy -D`.
-  C'est déjà couvert ailleurs — ne pas le dupliquer dans known-patterns.
+- DO `severity = "warning"` for **every** style/design pattern.
+- DON'T put a hard gate on a style pattern: the reviewer is an LLM that reads **all** the
+  warnings (and can also run dedicated passes "look at all warnings / fix them all"),
+  whereas a human would ignore the warnings. Forcing it blocks and slows with no gain.
+- DO reserve **blocking for functional issues only**: compiler, tests, `clippy -D`.
+  That is already covered elsewhere — do not duplicate it in known-patterns.
 
-### hygiène du mécanisme
+### hygiene of the mechanism
 
-- DO lancer le check sur le **diff de la PR**, pas le fichier entier (sinon re-flag de patterns
-  déjà corrigés = bruit).
-- DO prévoir une soupape `// review: ignore <rule-id>` (sinon la gate finit contournée en bloc
-  → faux négatif silencieux).
-- DO péremption : une règle jamais hit depuis N reviews est archivée, pas supprimée aveuglément.
-- DO mesurer d'abord : grep rétrospectif des patterns sur **tout l'historique git**
-  (`git log -p --all | grep -E <pattern>`) avant de figer quoi que ce soit — la métrique de
-  récurrence réelle. (Fait pour la PR #3 : `one_or_many` = 15 ajouts/9 fichiers → classe
-  récurrente ; `struct Helper` = 2 → one-off.)
-- DON'T d'embeddings/RAG à ce stade (corpus trop petit → bruit). LLM résiduel uniquement si un
-  pattern sémantique est **prouvé manqué 2 fois** par le grep.
-- DO lancer le check sur tout le repo une fois pour vérifier qu'il ne crie pas sur du code sain.
+- DO run the check on the **PR diff**, not whole files (otherwise re-flagging already
+  fixed patterns = noise).
+- DO provide an escape hatch `// review: ignore <rule-id>` (otherwise the gate ends up
+  bypassed in bulk -> silent false negative).
+- DO sunset: a rule never hit in N reviews is archived, not blindly deleted.
+- DO measure first: retrospective grep of the patterns over the **whole git history**
+  (`git log -p --all | grep -E <pattern>`) before freezing anything — the metric of
+  real recurrence. (Done for PR #3: `one_or_many` = 15 additions/9 files -> recurrent
+  class; `struct Helper` = 2 -> one-off.)
+- DON'T use embeddings/RAG at this stage (corpus too small -> noise). Residual LLM only if a
+  semantic pattern is **proven missed twice** by the grep.
+- DO run the check on the whole repo once to verify it does not shout at healthy code.
 
-### format de known-patterns.toml
+### format of known-patterns.toml
 
 ```toml
 [[pattern]]
-id = "serde-helper-identity"          # kebab-case, stable (référencé par review: ignore)
-scope = "crates/**/*.rs"               # glob du check
-regex = "struct Helper"                # pattern déterministe (grep -E), pas de sémantique
-message = "impl Deserialize manuel + Helper : si la conversion est une recopie identité, poser #[serde(...)] sur le champ — voir serde-mapping-owner"
-severity = "warning"                   # toujours warning (voir invariants)
-occurrences = [                        # TOUTES les occurrences, jamais le remplaçant
+id = "serde-helper-identity"          # kebab-case, stable (referenced by review: ignore)
+scope = "crates/**/*.rs"               # glob of the check
+regex = "struct Helper"                # deterministic pattern (grep -E), no semantics
+message = "manual Deserialize impl + Helper: if the conversion is an identity copy, put #[serde(...)] on the field — see serde-mapping-owner"
+severity = "warning"                   # always warning (see invariants)
+occurrences = [                        # ALL the occurrences, never the replacement
   { file = "crates/cpm-core/src/model/attribute.rs", lines = "26-37", since = "PR #3" },
 ]
 ```
 
-## Rapport
+## Report
 
-- Citer `file:line` lus pendant cette invocation. Verdict en deux parties : **prouvé**
-  (commande + sortie) / **non prouvé** (et pourquoi).
+- Cite the `file:line` read during this invocation. Two-part verdict: **proven**
+  (command + output) / **not proven** (and why).

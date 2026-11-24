@@ -1,70 +1,70 @@
-# Monitoring de l'usage Vibe / Mistral
+# Monitoring of Vibe / Mistral usage
 
-Le projet est **100% monitoré** : chaque session Vibe ouverte sur ce dépôt est
-capturée (cwd enregistré dans les meta de session), avec modèle, contexte,
-tokens et coût. Cette page documente les sources de données, les outils et les
-pièges vérifiés le 2026-11-08.
+This project is **100% monitored**: every Vibe session opened on this repository is
+captured (cwd recorded in the session meta), with model, context, tokens and cost.
+This page documents the data sources, the tools and the pitfalls, as verified on
+2026-11-08.
 
-## Outils
+## Tools
 
-| commande                                                                                               | sortie                    | usage                                                                                                         |
-| ------------------------------------------------------------------------------------------------------ | ------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `python3 tools/dashboard.py --project cpm`                                                             | terminal                  | snapshot : sessions actives (parallèles), durées, modèles, contexte courant/max vs seuil, tokens, coût estimé |
-| `python3 tools/dashboard.py --project cpm --watch 5`                                                   | terminal                  | temps réel, rafraîchi toutes les 5 s (Ctrl-C pour quitter)                                                    |
-| `python3 tools/dashboard.py --project cpm --html reports/dashboard.html --json reports/dashboard.json` | fichiers                  | dashboard HTML auto-refresh (meta refresh 5 s, ouvrable dans un navigateur) + snapshot JSON                   |
-| `python3 tools/usage_report.py --out-dir reports --project cpm`                                        | `reports/usage.{json,md}` | rapport agrégé : totaux, par modèle, par session, rétention                                                   |
+| command                                                                                                | output                    | usage                                                                                                             |
+| ------------------------------------------------------------------------------------------------------ | ------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `python3 tools/dashboard.py --project cpm`                                                             | terminal                  | snapshot: active (parallel) sessions, durations, models, current/max context vs threshold, tokens, estimated cost |
+| `python3 tools/dashboard.py --project cpm --watch 5`                                                   | terminal                  | real time, refreshed every 5 s (Ctrl-C to quit)                                                                   |
+| `python3 tools/dashboard.py --project cpm --html reports/dashboard.html --json reports/dashboard.json` | files                     | HTML dashboard with auto-refresh (meta refresh 5 s, openable in a browser) + JSON snapshot                        |
+| `python3 tools/usage_report.py --out-dir reports --project cpm`                                        | `reports/usage.{json,md}` | aggregate report: totals, per model, per session, retention                                                       |
 
-`reports/` est versionné : snapshot durable des agrégats.
+`reports/` is versioned: durable snapshot of the aggregates.
 
-## Sources de données (dans `~/.vibe/`)
+## Data sources (in `~/.vibe/`)
 
-- `logs/session/unified/*/meta.json` et `logs/session/session_*/meta.json` :
-  id, start/end, cwd, `config.active_model`, `config.models` (liste ou dict
-  selon les versions), `stats` (tokens + coût USD, renseigné à la fin de session).
-- `logs/session/unified/*/journal/*.jsonl` : un fichier par bloc ; chaque appel
-  LLM a son usage dans `payload.result.result.usage` (`input_tokens`,
+- `logs/session/unified/*/meta.json` and `logs/session/session_*/meta.json`:
+  id, start/end, cwd, `config.active_model`, `config.models` (list or dict
+  depending on versions), `stats` (tokens + USD cost, filled at session end).
+- `logs/session/unified/*/journal/*.jsonl`: one file per block; each LLM
+  call has its usage in `payload.result.result.usage` (`input_tokens`,
   `output_tokens`, `cached_input_tokens`, `reasoning_tokens`, `total_tokens`).
-  **Il n'y a pas de champ `model` par appel** : on attribue chaque appel au
-  `active_model` de la session.
-- `logs/session/active/*.lock.json` : sessions vivantes (session_id, acquired_at,
+  **There is no per-call `model` field**: each call is attributed to the
+  session's `active_model`.
+- `logs/session/active/*.lock.json`: live sessions (session_id, acquired_at,
   process_id).
-- `config.toml` : `auto_compact_threshold` global (200000), `[[models]]` avec
-  alias → name/provider/prix. **Ne jamais lire ni afficher `~/.vibe/.env`**.
-- `experiment_eval_cache.json` : defaults poussés par le serveur (feature flags
-  `vibe_cli_default_routing_model`, `vibe_cli_extra_models`) — utile comme
-  fallback quand une entrée locale est incomplète (ex. seuil 800000 de
-  `mistral-large-4-0-3` → `mistral-large-4-0` côté serveur, masqué localement
-  par une entrée orpheline qui retombe sur le global 200000).
-- `vibe -p ... --output-dir DIR` : écrit `export.json` (tokens, coût, stop
-  reason) à chaque sortie de run headless.
+- `config.toml`: global `auto_compact_threshold` (200000), `[[models]]` with
+  alias → name/provider/price. **Never read or display `~/.vibe/.env`**.
+- `experiment_eval_cache.json`: defaults pushed by the server (feature flags
+  `vibe_cli_default_routing_model`, `vibe_cli_extra_models`) — useful as a
+  fallback when a local entry is incomplete (e.g. the 800000 threshold of
+  `mistral-large-4-0-3` → `mistral-large-4-0` on the server side, masked locally
+  by an orphan entry that falls back to the global 200000).
+- `vibe -p ... --output-dir DIR`: writes `export.json` (tokens, cost, stop
+  reason) at each headless run exit.
 
-## Calcul du coût estimé
+## Estimated cost computation
 
-Par appel, depuis le journal : `(input - cached) × input_price + cached × cached_input_price + (output + reasoning) × output_price`, le tout /1M
-(prix en $/M tokens). Si le modèle résolu n'a pas de prix local → coût `n/a`
-(c'est le cas de l'alias orphelin `mistral-large-4-0-3` ; le coût fiable arrive
-avec `stats.session_cost` à la clôture de session).
+Per call, from the journal: `(input - cached) × input_price + cached × cached_input_price + (output + reasoning) × output_price`, all /1M
+(prices in $/M tokens). If the resolved model has no local price → cost `n/a`
+(this is the case of the orphan alias `mistral-large-4-0-3`; the reliable cost comes
+with `stats.session_cost` when the session closes).
 
-## Rétention (vérifié le 2026-11-08)
+## Retention (verified on 2026-11-08)
 
-- Logs de session locaux : **pas d'expiration automatique** trouvée (config
+- Local session logs: **no automatic expiration** found (config
   `[session_logging]` = enabled/save_dir/session_prefix/generate_titles
-  uniquement). Suppression manuelle possible via `/resume` (touche `d` x2) :
-  **ne pas le faire** tant que le monitoring est actif.
-- `vibe.log` : rotation à `LOG_MAX_BYTES` (10 MiB par défaut).
-- Télémétrie serveur Mistral (`enable_telemetry = true`) : rétention consultable
-  via `/data-retention` dans Vibe.
+  only). Manual deletion is possible via `/resume` (`d` key x2):
+  **do not do it** while monitoring is active.
+- `vibe.log`: rotation at `LOG_MAX_BYTES` (10 MiB default).
+- Mistral server telemetry (`enable_telemetry = true`): retention viewable
+  through `/data-retention` in Vibe.
 
-## Piège vérifié : alias modèle vs context window
+## Verified pitfall: model alias vs context window
 
-- Config locale : `active_model = ""` ; alias `large` → `mistral-large-4`
-  (auto_compact_threshold 200000 explicite) ; alias orphelin
-  `mistral-large-4-0-3` (juste `thinking="high"`, pas de name/prix/seuil →
-  hérite du global 200000, et le nom envoyé à l'API est l'alias lui-même).
-- Défaut serveur (A/B test `ml408-rollout-default-cli-ab-test`) :
+- Local config: `active_model = ""`; alias `large` → `mistral-large-4`
+  (explicit auto_compact_threshold 200000); orphan alias
+  `mistral-large-4-0-3` (just `thinking="high"`, no name/price/threshold →
+  inherits the global 200000, and the name sent to the API is the alias itself).
+- Server default (A/B test `ml408-rollout-default-cli-ab-test`):
   `mistral-large-4-0-3` → name `mistral-large-4-0`, `auto_compact_threshold: 800000`.
-- Conséquence : une session lancée avec l'alias `mistral-large-4-0-3` tombe sur
-  l'entrée locale orpheline et compacte à **200k**, pas 800k. Le dashboard
-  affiche le seuil effectif par session pour le repérer. Pour viser 800k :
-  donner un `name` + `auto_compact_threshold = 800000` à l'entrée locale, ou
-  relever le seuil de l'alias `large`.
+- Consequence: a session started with the `mistral-large-4-0-3` alias hits the
+  orphan local entry and compacts at **200k**, not 800k. The dashboard
+  displays the effective per-session threshold to spot this. To target 800k:
+  give the local entry a `name` + `auto_compact_threshold = 800000`, or
+  raise the `large` alias threshold.
