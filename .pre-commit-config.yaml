@@ -97,6 +97,15 @@ repos:
     stages: [ pre-commit ]
     types: [ markdown ]
 
+  # Repo-local check (English-only rule, AGENTS.md "Language and style"): scans the
+  # staged ADDED lines of every file type for French/accented characters.
+  - id: language
+    name: language (English-only added lines)
+    entry: "bash -c '[[ -x scripts/ci/check-language.py ]] || exit 0; scripts/ci/check-language.py'"
+    language: system
+    stages: [ pre-commit ]
+    pass_filenames: false
+
   # Standard PR tooling: same invocations as the matching CI jobs, through the same
   # scripts/ci wrappers where they exist.
   - id: gitlint
@@ -119,11 +128,10 @@ repos:
   - id: codespell
     name: codespell
     description: "Check Markdown files for common typos"
-    entry: "bash -c '[[ -x \"$(command -v codespell)\" ]] || exit 0; exec codespell'"
+    entry: "bash -c '[[ -x \"$(command -v codespell)\" ]] || exit 0; exec codespell \"$@\"' --"
     language: system
     stages: [ pre-commit ]
     types: [ markdown ]
-
 # Global settings
 default_stages: [ pre-commit ]
 fail_fast: false

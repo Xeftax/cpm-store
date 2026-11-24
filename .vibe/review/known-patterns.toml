@@ -22,6 +22,9 @@
 # - exclude_files verrouillé : ajout uniquement avec accord explicite de l'utilisateur
 # - les warnings restent jusqu'à ce que la règle ou les fichiers soient fixés
 # - lancer le check sur les LIGNES AJOUTÉES du diff, pas les fichiers entiers
+#
+# Exception: an id with no AST rule (e.g. `english-only`) is a doc-only contract —
+# the checker skips it; its entry documents where detection actually lives.
 
 [[pattern]]
 id = "serde-helper-identity"
@@ -172,4 +175,109 @@ severity = "warning"
 exclude_files = []
 occurrences = [
   { file = "crates/cpm-core/src/model/attribute.rs", lines = "60-132 (lookup + accesseurs typés, avant refactor)", since = "PR #3; fixed in PR #12 (review/attribute-list-crate)" },
+]
+
+[[pattern]]
+id = "closure-params-typed"
+rule = "Closure parameters always carry an explicit type (|a: &&Attribute|), even when the compiler infers it: PR diffs are read without IDE hover, and combinators like Iterator::find hand out double references (&&T) that are easy to misread in a raw diff."
+applies_to = "every closure in the repo (crates/**, tools/**)"
+when_not_applicable = "wildcard param |_| (no binding to type)"
+scope = "**/*.rs"
+message = "untyped closure parameter -> annotate it (|a: &T|). See AGENTS.md 'Language and style'."
+bad_example = """
+self.iter().find(|a| a.name.eq_ignore_ascii_case(name))
+"""
+good_example = """
+self.iter().find(|a: &&Attribute| a.name.eq_ignore_ascii_case(name))
+"""
+severity = "warning"
+exclude_files = []
+occurrences = [
+  { file = "crates/cpm-core/src/model/attribute.rs", lines = "90, 95, 101", since = "branch review/pr8-remaining" },
+  { file = "crates/cpm-core/src/model/flags.rs", lines = "175, 189", since = "branch review/pr8-remaining" },
+  { file = "crates/cpm-core/src/model/kind.rs", lines = "175, 202", since = "branch review/pr8-remaining" },
+  { file = "crates/cpm-core/src/model/mod.rs", lines = "199", since = "branch review/pr8-remaining" },
+  { file = "crates/cpm-core/src/model/sync.rs", lines = "46, 53, 64", since = "branch review/pr8-remaining" },
+  { file = "crates/cpm-core/tests/golden_annexes.rs", lines = "68, 78, 83, 245, 298, 312", since = "branch review/pr8-remaining" },
+  { file = "crates/cpm-core/tests/ports_mock.rs", lines = "57, 81, 90, 91", since = "branch review/pr8-remaining" },
+  { file = "tools/review-check/src", lines = "all closures in checker.rs, main.rs, report.rs, rules/*.rs", since = "branch review/pr8-remaining" },
+]
+
+[[pattern]]
+id = "english-only"
+rule = "All repository content is English: code, identifiers, comments (/// and //), docs, README, AGENTS.md, commit messages, PR titles/descriptions, CI scripts. French is only allowed in chat responses to the maintainer (user-level rule, not a repo rule). Detection is lexical, not AST, so it does NOT live in this linter: it is enforced by scripts/ci/check-language.py (pre-commit hook 'language', blocking CI job 'language (English-only added lines)', Vibe hooks 'language-pre-write' and 'language-post-agent'), which scans the lines ADDED by each change in every file type (.rs, .md, .toml, .yml, ...). This entry is the documented contract; the checker skips it (no AST rule with this id)."
+applies_to = "every added line of every file type"
+when_not_applicable = "generated/vendored files (**/Cargo.lock, docs/TREE.md, reports/**); pre-existing French lines — the check scans added lines only, existing docs are translated as they are touched"
+scope = "**/*"  # unused: doc-only entry, the checker skips it (no AST rule with this id)
+message = "n/a — enforced by scripts/ci/check-language.py, not by review-check"
+severity = "warning"
+exclude_files = []
+occurrences = [
+  { file = "crates/cpm-core/src/model/{attribute,flags,search,mod}.rs, crates/cpm-core/tests/ports_mock.rs", lines = "French comments translated to English", since = "English-only pass on branch review/pr8-remaining" },
+]
+
+[[pattern]]
+id = "serde-redundant-attr"
+rule = "Field/variant-level #[serde(...)] attributes vs the container-level one: (A) rename = \"X\" where X equals what the container's rename_all produces for that ident (or equals the ident itself without rename_all) is REDUNDANT -> remove it; (B) alias = \"X\" where X equals the effective wire name is redundant; (C) a bare field-level default when the container already has default is dead (container default wins) -> remove it; (D) a rename that is NOT redundant (differs from the rename_all output, e.g. the wire acronym resourceURL where camelCase gives resourceUrl) is load-bearing and MUST be explained by a comment: a trailing // on the attribute line (#[serde(rename = \"resourceURL\")] // wire ...), the line right after it when rustfmt wrapped a long trailing comment there, or a /// doc on the member — without it the next reader assumes it duplicates rename_all and deletes it. Detection computes serde's RenameRule exactly (field vs variant context), it does not pattern-match. A container annotated with #[rest_json(...)] (crate rest-json) counts as the container-level attribute: implicit rename_all = \"camelCase\", acronyms(\"URL\", ...) applied on top of the rule, and a rename(...) map entry is a rule-D-documented rename."
+applies_to = "every struct/enum with #[serde(...)] attributes in crates/**"
+when_not_applicable = "default = \"path\" (custom default fn) is never flagged, only a bare default under a container default; a rename equal to the rename_all output is rule A (remove), never rule D (document)"
+scope = "crates/**/*.rs"
+message = "rule A/B/C: redundant serde attribute, remove the field/variant-level one. rule D: load-bearing rename (wire acronym like resourceURL) -> add a /// comment on the member explaining the wire name. See .vibe/skills/serde-mapping-owner."
+bad_example = """
+#[serde(rename_all = "camelCase", default)]
+struct SelectionCriteria {
+    #[serde(default)]
+    pub max_entries: u32,
+}
+"""
+good_example = """
+#[serde(rename_all = "camelCase", default)]
+struct SelectionCriteria {
+    pub max_entries: u32,   // missing field comes from the container default
+}
+"""
+severity = "warning"
+exclude_files = []
+occurrences = [
+  { file = "crates/cpm-core/src/model/search.rs", lines = "112, 119-123, 127-131, 289-293 (bare default under container default)", since = "branch review/pr8-remaining, fixed" },
+  { file = "crates/cpm-core/src/model/events.rs", lines = "132, 137-141", since = "branch review/pr8-remaining, fixed" },
+  { file = "crates/cpm-core/src/model/folder.rs", lines = "100-104, 126, 136", since = "branch review/pr8-remaining, fixed" },
+  { file = "crates/cpm-core/src/model/imdn.rs", lines = "40-44", since = "branch review/pr8-remaining, fixed" },
+  { file = "crates/cpm-core/src/model/object.rs", lines = "37-41, 99-103, 140", since = "branch review/pr8-remaining, fixed" },
+  { file = "crates/cpm-core/src/model/subscription.rs", lines = "70", since = "branch review/pr8-remaining, fixed" },
+  { file = "crates/cpm-core/src/model/events.rs", lines = "NmsEvent variants 110-122: rename_all = camelCase added to the enum, 7 variant renames removed as redundant (wire format unchanged, golden tests green)", since = "branch review/pr8-remaining, fixed" },
+  { file = "crates/cpm-core/src/model/folder.rs", lines = "40, 52: rename folderReference/objectReference == camelCase(field) -> removed as redundant (rule A)", since = "branch review/pr8-remaining, fixed" },
+  { file = "crates/cpm-core/src/model/{events,folder,imdn,search,subscription}.rs", lines = "15 explicit renames (resourceURL x9, notifyURL, type x3, policyException/serviceException variants) carry a // wire-name comment on the attribute line or the wrapped next line (rule D)", since = "branch review/pr8-remaining, fixed" },
+  { file = "crates/cpm-core/src/model/folder.rs", lines = "FolderReferenceList/ObjectReferenceList: rename_all = camelCase added to the containers, field renames and bare defaults removed (wire keys folderReference/objectReference unchanged)", since = "branch review/pr8-remaining, fixed" },
+]
+
+[[pattern]]
+id = "rest-json-policy"
+rule = "REST/JSON wire containers in crates/** use the container-level policy attribute #[rest_json(...)] (crate rest-json, proc-macro) instead of hand-written #[serde(rename_all = \"camelCase\")] + per-field skip_serializing_if: it must sit ABOVE #[derive(... Serialize, Deserialize ...)] (attribute macros expand outside-in; misplaced = compile error), and it lowers to plain #[serde(...)] attributes. Policy args: rename_all = \"...\" (default camelCase, \"none\" to disable), acronyms(\"URL\", ...) keeps acronym words in full caps (resource_url -> resourceURL), rename(member = \"wire\") is a per-member override, skip_none (default) adds skip_serializing_if = \"Option::is_none\" to every Option field, and any other arg (default, deny_unknown_fields, tag = ...) is forwarded to the emitted container #[serde(...)]. A manual field-level #[serde(rename = ...)] always wins and is left untouched."
+applies_to = "every struct/enum serialized to the REST/JSON wire format in crates/**"
+when_not_applicable = "non-wire serde types (transparent wrappers, plain enums serialized by variant name, client-side drafts) keep their manual #[serde(...)]; a fully custom fn(&str) -> String rename is not possible at macro-expansion time (serde-rs/serde#2852) — use acronyms(...)/rename(...) or a manual field rename"
+scope = "crates/**/*.rs"
+message = "wire container should use #[rest_json(...)] above #[derive] instead of repeating rename_all/skip_serializing_if by hand. See crates/rest-json/src/lib.rs docs."
+bad_example = """
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Link {
+    pub href: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rel: Option<String>,
+}
+"""
+good_example = """
+#[rest_json]
+#[derive(Serialize, Deserialize)]
+pub struct Link {
+    pub href: String,
+    #[serde(default)]
+    pub rel: Option<String>,
+}
+"""
+severity = "warning"
+exclude_files = []
+occurrences = [
+  { file = "crates/cpm-core/src/model/{events,folder,imdn,object,search,subscription,sync}.rs", lines = "43 containers migrated to #[rest_json] (acronyms(\"URL\") for resourceURL/notifyURL, rename(...) for wire \"type\" and the RequestErrorKind exception kinds)", since = "branch feat/rest-json-policy" },
 ]

@@ -1,16 +1,16 @@
-# model/ — domain model OMA CPM / NMS
+# model/ — OMA CPM / NMS domain model
 
-Chaque fichier `*.rs` ici a la même structure :
+Every `*.rs` file here has the same structure:
 
-1. header `//!` (rôle du module + références spec REST-NMS / CPM-REST avec sections)
-2. `use`, puis sections thématiques en bannière `// ==== Titre ====`
-3. `#[cfg(test)] mod tests` en bas du fichier
+1. `//!` header (module role + REST-NMS / CPM-REST spec references with sections)
+2. `use`, then thematic sections as `// ==== Title ====` banners
+3. `#[cfg(test)] mod tests` at the bottom of the file
 
-`mod.rs` documente le dossier (`//!`) + déclare `pub mod` + ré-exporte (`pub use`).
+`mod.rs` documents the folder (`//!`) + declares `pub mod` + re-exports (`pub use`).
 
-Règles de domaine (détails dans les skills-owners `.vibe/skills/`, voir AGENTS.md racine) :
-derive-first serde (`super::one_or_many` pour XML-to-JSON string-ou-array), structs en types
-possédés uniquement, noms d'attributs case-insensitive (REST-NMS §5.3.2.5), newtype/`Deref`,
-macros de factorisation.
+Domain rules (details in the owner skills `.vibe/skills/`, see the root AGENTS.md):
+derive-first serde (`super::one_or_many` for XML-to-JSON string-or-array), structs as
+owned types only, case-insensitive attribute names (REST-NMS §5.3.2.5), newtype/`Deref`,
+factoring macros.
 
-Rôle de chaque fichier : `docs/TREE.md` (auto-généré, ne pas éditer à la main).
+Role of each file: `docs/TREE.md` (auto-generated, do not edit by hand).
