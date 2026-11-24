@@ -81,10 +81,14 @@ fn watch(root: &str, cfg: &checker::Config, gcc: bool) {
             .collect();
         let mut changed = first;
         for f in &files {
-            if let Ok(mt) =
-                std::fs::metadata(std::path::Path::new(root).join(f)).and_then(|m| m.modified())
+            if let Ok(mt) = std::fs::metadata(std::path::Path::new(root).join(f))
+                .and_then(|m: std::fs::Metadata| m.modified())
             {
-                if last_mtime.get(f).map(|&p| mt > p).unwrap_or(true) {
+                if last_mtime
+                    .get(f)
+                    .map(|&p: &SystemTime| mt > p)
+                    .unwrap_or(true)
+                {
                     changed = true;
                 }
                 last_mtime.insert(f.clone(), mt);
@@ -93,7 +97,7 @@ fn watch(root: &str, cfg: &checker::Config, gcc: bool) {
         if changed {
             let secs = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
-                .map(|d| d.as_secs())
+                .map(|d: Duration| d.as_secs())
                 .unwrap_or(0);
             println!("[review-check] run unix={secs}");
             let (findings, n_files) = checker::run(root, cfg, "HEAD", "HEAD", &Mode::All);

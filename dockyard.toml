@@ -52,8 +52,14 @@ required-checks = [
   "language (English-only added lines)",
   "review-required (>=1 commit with a Reviewed-By trailer)",
 ]
+# The python/markdown jobs (lint-python, typecheck-python, security-python,
+# test-python, format-markdown) run on every PR but are not required: this repo is
+# Rust-first (dockyard languages = []), they stay green as advisory checks.
+# `review-owners` is informational (prints the owners triggered by the diff).
 required-reviews = 0
 code-owner-reviews = false
-# Inutile avec required-reviews = 0 (GitHub remet le switch a false de toute facon).
-last-push-approval = false
+# Every PR needs a review commit (Reviewed-By trailer, enforced by the review-required
+# CI job) AND GitHub's "require approval of the most recent reviewable push"
+# (last-push-approval). Apply with the dockyard:platform-check skill.
+last-push-approval = true
 merge-queue = false

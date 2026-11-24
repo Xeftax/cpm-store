@@ -45,6 +45,9 @@ Règles :
 
 - les **ports** (traits) vivent dans `cpm-core::ports` ; `cpm-core` ne dépend que de
   serde/thiserror/chrono/uuid — aucune I/O, aucun `unsafe` ;
+- `rest-json` is a compile-time-only proc-macro dependency of `cpm-core`
+  (`#[rest_json]` serde policy): no runtime dependency, no `unsafe`, so
+  `cpm-core` stays pure (no I/O at runtime);
 - chaque **adapter** implémente un port dans son propre crate (`cpm-nms`, `cpm-imap`) ;
 - aucun panic ne traverse une frontière d'adapter : `Result<T, CpmError>` partout ;
 - un seul point d'HTTP par adapter (centralisé dans son `http.rs`), config immutable
@@ -62,6 +65,7 @@ Règles :
 | `cpm-imap`   | **Adapter IMAP** : implémente `StoreBackend` sur `OMA-TS-CPM_Message_Store-V2_2` (créé en phase 7).                                                                                                    | adapter entrant (ph. 7) |
 | `cpm-client` | Moteur de synchro **binding-agnostic** : first-time + steady-state (strict sync §6.3), orchestre `StoreBackend` + `MessageStorage` + `SyncStateStore` + `MessageCodec`. Ne stocke rien.                | orchestration           |
 | `cpm-ffi`    | **Adapter C sortant** : API C pour liblinphone (cbindgen, `cdylib`/`staticlib`), vtable des ports hôte, runtime tokio global (`OnceLock`), `catch_unwind` à la frontière. Seul crate avec `unsafe`.    | adapter sortant         |
+| `rest-json`  | In-workspace proc-macro `#[rest_json]`: container-level serde policy for the REST/JSON wire (emits plain `#[serde(...)]`; acronyms, renames, skip-on-None). Compile-time only.                         | macro (compile-time)    |
 
 ## Décisions (ADR)
 
@@ -81,6 +85,11 @@ Règles :
   orchestre via ces ports.
 - **D4 — Workspace `crates/*`, dépendances centralisées** dans
   `[workspace.dependencies]`, MSRV 1.85, édition 2024.
+  Compile-time exception: `rest-json` (proc-macro `#[rest_json]`, the container
+  serde policy of the REST/JSON wire — camelCase `rename_all` + acronyms +
+  skip-on-None, emitted as plain `#[serde(...)]` attributes). `syn`/`quote`/
+  `proc-macro2` are already in the lockfile via `serde_derive`: no new crate
+  enters the dependency graph (cargo-deny/MSRV unchanged).
 - **D5 — FFI en C via cbindgen** (`cdylib` + `staticlib`). **Contrat FFI à écrire
   avant la phase 6** : runtime tokio global possédé par `cpm-ffi` via `OnceLock`
   (créé à l'init, jamais recréé par appel) ; vtable C explicite des ports hôte ;

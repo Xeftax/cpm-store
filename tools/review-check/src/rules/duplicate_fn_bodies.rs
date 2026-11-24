@@ -22,8 +22,9 @@ impl Rule for DuplicateFnBodies {
 
     fn candidates(&self, ast: &syn::File, _src: &str) -> Vec<Candidate> {
         let mut bodies: Vec<(usize, String)> = Vec::new();
-        let free = fns(ast).map(|f| (line_of(&f.sig.ident), &*f.block));
-        let methods = impl_methods(ast).map(|m| (line_of(&m.sig.ident), &m.block));
+        let free = fns(ast).map(|f: &syn::ItemFn| (line_of(&f.sig.ident), &*f.block));
+        let methods =
+            impl_methods(ast).map(|m: &syn::ImplItemFn| (line_of(&m.sig.ident), &m.block));
         for (line, block) in free.chain(methods) {
             let norm = normalize(quote::ToTokens::to_token_stream(block));
             if norm.split_whitespace().count() >= MIN_TOKENS {
@@ -48,7 +49,7 @@ impl Rule for DuplicateFnBodies {
 /// Identifiants -> "I", literals -> "S", délimiteurs explicites.
 fn normalize(ts: TokenStream) -> String {
     ts.into_iter()
-        .map(|tt| match tt {
+        .map(|tt: TokenTree| match tt {
             TokenTree::Ident(_) => "I".to_string(),
             TokenTree::Literal(_) => "S".to_string(),
             TokenTree::Punct(p) => p.as_char().to_string(),

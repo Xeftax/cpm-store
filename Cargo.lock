@@ -117,10 +117,13 @@ dependencies = [
 name = "cpm-core"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "jiff",
+ "rest-json",
  "serde",
  "serde_json",
  "thiserror",
+ "tokio",
  "uuid",
 ]
 
@@ -991,6 +994,17 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "webpki-roots",
+]
+
+[[package]]
+name = "rest-json"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "serde",
+ "serde_json",
+ "syn 2.0.119",
 ]
 
 [[package]]

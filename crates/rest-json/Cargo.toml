@@ -1,0 +1,23 @@
+[package]
+name = "rest-json"
+description = "Container-level serde policy attribute (#[rest_json]) for the CPM REST/JSON wire format: emits the #[serde(...)] attributes (rename_all, acronym-aware renames, per-member overrides, skip-on-None)."
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
+syn = { workspace = true }
+
+[dev-dependencies]
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

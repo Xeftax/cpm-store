@@ -13,14 +13,20 @@ impl Rule for ManualSerdeImpl {
 
     fn candidates(&self, ast: &syn::File, _src: &str) -> Vec<Candidate> {
         impls(ast)
-            .filter(|imp| {
+            .filter(|imp: &&syn::ItemImpl| {
                 imp.trait_
                     .as_ref()
-                    .and_then(|(_, path, _)| path.segments.last())
-                    .map(|seg| seg.ident.to_string().to_lowercase().contains("serialize"))
+                    .and_then(
+                        |t: &(Option<syn::token::Not>, syn::Path, syn::token::For)| {
+                            t.1.segments.last()
+                        },
+                    )
+                    .map(|seg: &syn::PathSegment| {
+                        seg.ident.to_string().to_lowercase().contains("serialize")
+                    })
                     .unwrap_or(false)
             })
-            .map(|imp| Candidate {
+            .map(|imp: &syn::ItemImpl| Candidate {
                 line: line_of(imp),
                 violation: true, // à valider : derive suffisant ?
             })

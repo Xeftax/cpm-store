@@ -13,6 +13,11 @@ publish = false
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
+# Proc-macro building blocks (rest-json). Already in the lock via serde_derive:
+# no new crate enters the dependency graph, cargo-deny/MSRV are unaffected.
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "2", features = ["full"] }
 jiff = { version = "0.2", default-features = false, features = ["std", "serde"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 url = "2"

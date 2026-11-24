@@ -3,7 +3,7 @@
 use crate::checker::{Finding, Mode};
 
 pub fn print(findings: &[Finding], n_files: usize, mode: &Mode, gcc: bool, scope_desc: &str) {
-    let violations = findings.iter().filter(|f| f.violation).count();
+    let violations = findings.iter().filter(|f: &&Finding| f.violation).count();
     for f in findings {
         if gcc {
             if f.violation {
