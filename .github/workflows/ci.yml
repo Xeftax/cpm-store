@@ -116,6 +116,9 @@ jobs:
   review-required:
     name: review-required (>=1 commit with a Reviewed-By trailer)
     runs-on: ubuntu-latest
+    # PR gate only: on a push to main the range origin/main...HEAD is empty and
+    # there is no PR to review, so the check would always fail there.
+    if: github.event_name == 'pull_request'
     steps:
       # full history: the scan covers the commit messages of the whole PR range
       - uses: actions/checkout@v4
