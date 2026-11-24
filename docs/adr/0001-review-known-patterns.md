@@ -1,67 +1,70 @@
-# ADR 0001 — Mémoire de review (« known-patterns ») pour cpm-store
+# ADR 0001 — Review memory ("known-patterns") for cpm-store
 
-- **Statut** : accepté — 2026-11-14
-- **Décideurs** : Quentin (repo perso), conseil LLM (5 advisors + 5 peer-reviews + chairman) + revue utilisateur
-- **Cas d'école** : PR #3 `phase1/cpm-core`, commentaires sur `crates/cpm-core/src/model/attribute.rs` (lignes 23, 40, 53)
+- **Status**: accepted — 2026-11-14
+- **Deciders**: Quentin (personal repo), LLM council (5 advisors + 5 peer-reviews + chairman) + user review
+- **Case study**: PR #3 `phase1/cpm-core`, comments on `crates/cpm-core/src/model/attribute.rs` (lines 23, 40, 53)
 
-## Contexte
+## Context
 
-Les commentaires de review laissés sur les PR meurent dans GitHub : rien ne re-flague un
-anti-pattern déjà signalé quand il réapparaît dans un prochain diff. Sur cpm-store (petit repo
-perso, ~4 commentaires de review à ce jour), on veut un mécanisme **léger, déterministe et
-prouvable**, sans faux positifs qui noieraient le reviewer.
+Review comments left on PRs die in GitHub: nothing re-flags an anti-pattern that was
+already reported when it reappears in a later diff. On cpm-store (small personal repo,
+~4 review comments so far) we want a **lightweight, deterministic and provable**
+mechanism, with no false positives that would drown the reviewer.
 
-## Décision
+## Decision
 
-1. **Known-patterns déterministes uniquement** : `.vibe/review/known-patterns.toml`
-   (un pattern = `id`, `scope` glob, `regex`, `message`, `severity`, `occurrences[]`) +
-   `tools/review-check (binaire Rust, AST via syn)`, lancé **sur le diff de la PR** uniquement,
-   branché dans le pipeline de review existant. Preuve : sur le diff de la PR #3, les 2
-   patterns retenus ressortent en warning (attribute.rs:26, 53, 115) ; sur le diff du
-   refactor (PR #5), 0 hit. Un 3e pattern (`manual-serde-impl`) a été testé puis retiré :
-   11 faux positifs sur des impls légitimes d'enums — commenté dans le TOML.
-2. **Sévérité `warning` pour tout pattern de style/design — jamais de hard gate.** Le reviewer
-   est un LLM qui lit tous les warnings (et peut faire des passes dédiées) ; un humain les
-   ignorerait. Le **bloquant reste réservé au fonctionnel** : compilateur, tests, `clippy -D`.
-3. **Noter dès la 1ère occurrence** (pas de seuil « 2 fois »), et **indexer toutes les
-   occurrences** (`file`, `lines`, `since`) — jamais ce qui a remplacé le pattern — pour pouvoir,
-   si la règle évolue, lister d'un coup toutes les parties concernées et vérifier que le
-   changement est justifiable partout.
-4. **Soupape** `// review: ignore <rule-id>` ; **péremption** d'une règle jamais hit depuis N
-   reviews (archivée, pas supprimée aveuglément).
-5. **Mesurer avant de construire** : grep rétrospectif des patterns sur tout l'historique git
-   (`git log -p --all | grep -E <pattern>`). Fait pour la PR #3 : `one_or_many` = 15 ajouts /
-   9 fichiers (classe récurrente), `struct Helper` = 2 (one-off).
-6. **Pas de sémantique à ce stade** : pas d'embeddings/RAG (corpus trop petit → bruit et faux
-   négatifs silencieux). LLM résiduel uniquement si un pattern sémantique est **prouvé manqué
-   2 fois** par le grep.
+1. **Deterministic known-patterns only**: `.vibe/review/known-patterns.toml`
+   (a pattern = `id`, `scope` glob, `regex`, `message`, `severity`, `occurrences[]`) +
+   `tools/review-check (Rust binary, AST via syn)`, run **on the PR diff** only, wired
+   into the existing review pipeline. Proof: on the PR #3 diff, the 2 retained patterns
+   show up as warnings (attribute.rs:26, 53, 115); on the refactor diff (PR #5), 0 hits.
+   A 3rd pattern (`manual-serde-impl`) was tested then removed: 11 false positives on
+   legitimate enum impls — commented in the TOML.
+2. **Severity `warning` for every style/design pattern — never a hard gate.** The reviewer
+   is an LLM that reads every warning (and can run dedicated passes); a human would
+   skip them. **Blocking stays reserved for functional issues**: compiler, tests,
+   `clippy -D`.
+3. **Record from the 1st occurrence** (no "twice" threshold), and **index all
+   occurrences** (`file`, `lines`, `since`) — never what replaced the pattern — so that,
+   if the rule evolves, all affected spots can be listed at once and checked that the
+   change is justifiable everywhere.
+4. **Safety valve** `// review: ignore <rule-id>`; **expiration** of a rule never hit
+   in N reviews (archived, not blindly deleted).
+5. **Measure before building**: retrospective grep of the patterns over the whole git
+   history (`git log -p --all | grep -E <pattern>`). Done for PR #3: `one_or_many` = 15
+   additions / 9 files (recurring class), `struct Helper` = 2 (one-off).
+6. **No semantics at this stage**: no embeddings/RAG (corpus too small → noise and silent
+   false negatives). Residual LLM only if a semantic pattern is **proven missed twice**
+   by the grep.
 
-## Conséquences
+## Consequences
 
-- Le check est rejouable localement, versionné avec le code, et prouvable (run sur la PR #3,
-  les patterns doivent ressortir en warning — critère de falsification).
-- Le TOML grossit d'une entrée par nouveau commentaire de review (mode de maintenance, pas de
-  « réajustement de poids »).
+- The check is replayable locally, versioned with the code, and provable (run on the
+  PR #3 diff, the patterns must show up as warnings — falsification criterion).
+- The TOML grows by one entry per new review comment (maintenance mode, not
+  "weight re-tuning").
 
-## Règle associée — AGENTS.md par dossier + TREE.md auto-généré
+## Related rule — per-directory AGENTS.md + auto-generated TREE.md
 
-Pour qu'un agent connaisse le contenu d'un fichier **sans tout lire** :
+So that an agent knows the content of a file **without reading everything**:
 
-- `AGENTS.md` à la racine + un par dossier (`crates/cpm-core/`, `src/model/`, `docs/`) :
-  identité/contexte du dossier ; le plus proche du cwd s'applique en priorité.
-- `docs/TREE.md` : arbre auto-généré par `tools/generate-filemap.py` (source = première ligne
-  du `//!` de chaque fichier ; `.vibe/` exclu car déjà découvert par le harness via
-  `skill_paths`). **Ne jamais éditer TREE.md à la main** : corriger le `//!` source et relancer
-  le script. À synchroniser par pre-commit hook / check CI (même pattern que le FILEMAP de
-  dockyard). Équivalent Rust de `__init__.py` pour documenter un dossier : `mod.rs` + `//!`.
+- `AGENTS.md` at the root + one per directory (`crates/cpm-core/`, `src/model/`,
+  `docs/`): directory identity/context; the closest to the cwd takes priority.
+- `docs/TREE.md`: tree auto-generated by `tools/generate-filemap.py` (source = first
+  line of each file's `//!`; `.vibe/` excluded because already discovered by the
+  harness via `skill_paths`). **Never edit TREE.md by hand**: fix the source `//!` and
+  rerun the script. To be kept in sync via pre-commit hook / CI check (same pattern as
+  the dockyard FILEMAP). Rust equivalent of `__init__.py` for documenting a directory:
+  `mod.rs` + `//!`.
 
-## Alternatives rejetées
+## Rejected alternatives
 
-- **Seuils/poids ajustés itérativement à chaque revue** : boucle manuelle qui pourrit à cette
-  échelle ; la récurrence n'est pas un prérequis à la documentation d'un anti-pattern.
-- **Embeddings/RAG sémantique (MiniLM-L6-v2 etc.)** : à n≈4 commentaires, c'est du bruit avec
-  similarité cosinus ; faux négatifs silencieux (le silence passe pour preuve d'absence).
-  Littérature de référence : Bosu et al. (utilité des commentaires de review), OpenCodeReview
-  arXiv:2608.09290 (déterminisme partout sauf jugement sémantique), JIT defect prediction.
-- **Hard gate sur pattern de style** : freine sans gain, le reviewer LLM lit déjà tous les
-  warnings.
+- **Thresholds/weights iteratively re-tuned at each review**: a manual loop that rots
+  at this scale; recurrence is not a prerequisite for documenting an anti-pattern.
+- **Semantic embeddings/RAG (MiniLM-L6-v2 etc.)**: at ≈4 comments, it is noise with
+  cosine similarity; silent false negatives (silence passes as proof of absence).
+  Reference literature: Bosu et al. (usefulness of review comments), OpenCodeReview
+  arXiv:2608.09290 (determinism everywhere except semantic judgment), JIT defect
+  prediction.
+- **Hard gate on a style pattern**: slows down with no benefit — the LLM reviewer already
+  reads every warning.

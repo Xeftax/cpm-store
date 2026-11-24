@@ -1,19 +1,18 @@
-# cpm-store — client Rust pour OMA CPM (Converged Personal Messaging)
+# cpm-store — Rust client for OMA CPM (Converged Personal Messaging)
 
-Bibliothèque client du standard **OMA CPM** pour la **sauvegarde / synchronisation
-de conversations**. **Cas d'usage pilote** : l'intégration dans **Linphone**
-(client SIP/RCS) — c'est le cas concret qui oriente les décisions, les tests et la
-direction du projet, sans en être l'unique destination (l'API C de `cpm-ffi` reste
-réutilisable par tout client C/C++).
+Client library for the **OMA CPM** standard for **conversation backup / synchronization**.
+**Pilot use case**: integration into **Linphone** (SIP/RCS client) — the concrete case
+that drives decisions, tests and project direction, without being the only destination
+(the C API of `cpm-ffi` remains reusable by any C/C++ client).
 
-- **Périmètre V1** : CPM Message Storage via RESTful API
-  (`OMA-TS-CPM_Message_Storage_Using_RESTFul_API-V1_0-20200907-C`), bâti sur
+- **V1 scope**: CPM Message Storage via RESTful API
+  (`OMA-TS-CPM_Message_Storage_Using_RESTFul_API-V1_0-20200907-C`), built on
   **OMA REST_NetAPI_NMS** (`OMA-TS-REST_NetAPI_NMS-V1_0-20190528-C`).
-- **Phase ultérieure** : binding IMAP (`OMA-TS-CPM_Message_Store-V2_2`).
-- **Hors périmètre V1** : signalisation SIP/MSRP, charging, interworking.
-- **Statut** : phase 0 — setup du workspace. Voir `docs/roadmap.md`.
+- **Later phase**: IMAP binding (`OMA-TS-CPM_Message_Store-V2_2`).
+- **Out of V1 scope**: SIP/MSRP signaling, charging, interworking.
+- **Status**: phase 0 — workspace setup. See `docs/roadmap.md`.
 
-## Démarrage rapide
+## Quick start
 
 ```sh
 cargo build --workspace
@@ -26,28 +25,28 @@ cargo fmt --all -- --check
 
 ```
 crates/
-├── cpm-core     ← modèle de données NMS/CPM (pur : pas d'I/O, pas d'unsafe)
-├── cpm-nms      ← client REST_NetAPI_NMS (transport, auth, dossiers, objets, sync)
-├── cpm-msg      ← format de message CPM (CPIM/MIME) + mapping conversation
-├── cpm-client   ← moteur haut niveau backup/sync (first-time + steady-state)
-└── cpm-ffi      ← API C (cbindgen, cdylib/staticlib) pour liblinphone
+├── cpm-core     ← NMS/CPM data model (pure: no I/O, no unsafe)
+├── cpm-nms      ← REST_NetAPI_NMS client (transport, auth, folders, objects, sync)
+├── cpm-msg      ← CPM message format (CPIM/MIME) + conversation mapping
+├── cpm-client   ← high-level backup/sync engine (first-time + steady-state)
+└── cpm-ffi      ← C API (cbindgen, cdylib/staticlib) for liblinphone
 docs/
-├── architecture.md   ← architecture et décisions (ADR)
-├── specs.md          ← références normatives (+ copies locales dans docs/specs/)
-├── conformance.md    ← checklist de conformance (SCR)
-└── roadmap.md        ← plan par phases
+├── architecture.md   ← architecture and decisions (ADR)
+├── specs.md          ← normative references (+ local copies in docs/specs/)
+├── conformance.md    ← conformance checklist (SCR)
+└── roadmap.md        ← phase plan
 ```
 
 ## Documentation
 
-- `AGENTS.md` — point d'entrée pour contribuer (y compris avec un LLM)
-- `docs/architecture.md` — architecture, layering, décisions
-- `docs/specs.md` — specs OMA de référence et où les trouver localement
-- `docs/conformance.md` — exigences SCR suivies item par item
-- `docs/roadmap.md` — phases et critères de sortie
-- `docs/workflow.md` — stratégie de dev, workflow d'agents (owners), rôle de l'humain
+- `AGENTS.md` — entry point for contributing (including with an LLM)
+- `docs/architecture.md` — architecture, layering, decisions
+- `docs/specs.md` — reference OMA specs and where to find them locally
+- `docs/conformance.md` — SCR requirements tracked item by item
+- `docs/roadmap.md` — phases and exit criteria
+- `docs/workflow.md` — dev strategy, agent workflow (owners), role of the human
 
-## Licence
+## License
 
-Apache-2.0 (voir `LICENSE`) — compatible GPLv3/AGPL, donc intégrable dans
+Apache-2.0 (see `LICENSE`) — GPLv3/AGPL compatible, so it can be integrated into
 linphone-sdk.

@@ -1,6 +1,6 @@
-//! Règle `manual-serde-impl` : périmètre = tous les impls de traits contenant
-//! "Serialize" (quel que soit le lifetime) ; violation = à vérifier au cas par cas
-//! (un derive + attributs champ suffit dans ~95% des cas).
+//! Rule `manual-serde-impl`: scope = all impls of traits containing
+//! "Serialize" (whatever the lifetime); violation = to be checked case by case
+//! (a derive + field attributes suffice in ~95% of cases).
 
 use super::{impls, line_of, Candidate, Rule};
 
@@ -28,7 +28,7 @@ impl Rule for ManualSerdeImpl {
             })
             .map(|imp: &syn::ItemImpl| Candidate {
                 line: line_of(imp),
-                violation: true, // à valider : derive suffisant ?
+                violation: true, // to validate: is a derive enough?
             })
             .collect()
     }

@@ -1,9 +1,9 @@
-"""Smoke tests : chaque module Python du dépôt s'importe sans exécuter `main`,
-plus un test unitaire simple par outil quand c'est évident.
+"""Smoke tests: every Python module in the repo imports without running `main`,
+plus one simple unit test per tool where it is obvious.
 
-Chargement par importlib + sys.path plutôt que par import statique : mypy_path =
-"tools,scripts" résout déjà ces fichiers sous leur basename, et un import
-package-style les ferait apparaître deux fois sous deux noms de module pour mypy.
+Loading via importlib + sys.path instead of a static import: mypy_path =
+"tools,scripts" already resolves these files under their basename, and a
+package-style import would make them appear twice under two module names for mypy.
 """
 
 import importlib
@@ -21,7 +21,7 @@ LIB_MODULES = ("filemap_core", "hook_payload", "scan_report")
 
 
 def load_module(name: str, subdir: str) -> ModuleType:
-    """Importe `name` depuis ROOT/subdir (ajouté à sys.path) sans exécuter main."""
+    """Imports `name` from ROOT/subdir (added to sys.path) without running main."""
     directory = ROOT / subdir
     if str(directory) not in sys.path:
         sys.path.insert(0, str(directory))
@@ -29,32 +29,32 @@ def load_module(name: str, subdir: str) -> ModuleType:
 
 
 def fn(mod: ModuleType, name: str) -> Any:
-    """Attribut de module résolu dynamiquement (mypy voit Any, pas de conflit de noms)."""
+    """Dynamically resolved module attribute (mypy sees Any, no name conflicts)."""
     return vars(mod)[name]
 
 
 @pytest.fixture(scope="module")
 def tools() -> dict[str, ModuleType]:
-    """Tous les modules de tools/, importés."""
+    """All modules in tools/, imported."""
     return {name: load_module(name, "tools") for name in TOOL_MODULES}
 
 
 @pytest.fixture(scope="module")
 def libs() -> dict[str, ModuleType]:
-    """Tous les modules de scripts/ci/lib/, importés."""
+    """All modules in scripts/ci/lib/, imported."""
     return {name: load_module(name, "scripts/ci/lib") for name in LIB_MODULES}
 
 
 def test_smoke_import_tools(tools: dict[str, ModuleType]) -> None:
     for name, mod in tools.items():
         assert mod.__name__ == name
-        assert callable(fn(mod, "main")), f"{name} n'a pas de main()"
+        assert callable(fn(mod, "main")), f"{name} has no main()"
 
 
 def test_smoke_import_libs(libs: dict[str, ModuleType]) -> None:
     for name, mod in libs.items():
         assert mod.__name__ == name
-        assert callable(fn(mod, "main")), f"{name} n'a pas de main()"
+        assert callable(fn(mod, "main")), f"{name} has no main()"
 
 
 def test_dashboard_helpers(tools: dict[str, ModuleType]) -> None:
@@ -118,10 +118,10 @@ def test_dashboard_collect_render(tmp_path: Path, tools: dict[str, ModuleType]) 
     assert s["model"]["name"] == "Test Model"
     assert s["calls"] == 1
     text = fn(d, "render_text")(sessions, thr, None)
-    assert sid in text and "TOTAUX" in text
+    assert sid in text and "TOTALS" in text
     html = fn(d, "render_html")(sessions, thr, None)
     assert "Vibe usage dashboard" in html and sid in html
-    # filtre projet : aucun cwd ne contient "other"
+    # project filter: no cwd contains "other"
     assert fn(d, "collect")(vibe, "other") == ([], 200000)
 
 
@@ -157,7 +157,7 @@ def test_usage_report_helpers(tmp_path: Path, tools: dict[str, ModuleType]) -> N
 def test_specs_qa_helpers(tools: dict[str, ModuleType]) -> None:
     q = tools["specs_qa"]
     assert fn(q, "norm_hard")("Hello, World! 123") == "helloworld123"
-    sents = fn(q, "sentences")("Court. Une phrase vraiment beaucoup plus longue que quarante caractères !")
+    sents = fn(q, "sentences")("Short. A sentence that is really much longer than forty characters!")
     assert len(sents) == 1
 
 
@@ -247,6 +247,6 @@ def test_scan_report(libs: dict[str, ModuleType]) -> None:
 
 def test_filemap_split_sections(libs: dict[str, ModuleType]) -> None:
     fm = libs["filemap_core"]
-    text = "préambule perdu\n# ── Python ──\nligne 1\nligne 2\n# ── Rust ──\nrust 1\n"
+    text = "orphan preamble\n# ── Python ──\nline 1\nline 2\n# ── Rust ──\nrust 1\n"
     sections = fn(fm, "split_sections")(text)
-    assert sections == [("Python", ["ligne 1", "ligne 2"]), ("Rust", ["rust 1", ""])]
+    assert sections == [("Python", ["line 1", "line 2"]), ("Rust", ["rust 1", ""])]

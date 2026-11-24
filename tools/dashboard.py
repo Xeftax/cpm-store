@@ -1,30 +1,31 @@
 #!/usr/bin/env python3
-"""Dashboard temps réel de l'usage Vibe / Mistral (monitoring du projet cpm-store).
+"""Real-time dashboard for Vibe / Mistral usage (project monitoring for cpm-store).
 
-Lit en direct les logs de ~/.vibe/logs/session et affiche :
-- sessions actives maintenant (parallèles), temps écoulé, dernière activité
-- modèle utilisé par session (alias -> name résolu, prix, seuil d'auto-compact)
-- taille du contexte (dernier input_tokens observé dans le journal, max, % du seuil)
-- tokens consommés et coût estimé par session (prix /1M tokens du modèle résolu)
-- totaux globaux
+Reads the ~/.vibe/logs/session logs directly and displays:
+- sessions active now (in parallel), elapsed time, last activity
+- model used per session (alias -> resolved name, prices, auto-compact threshold)
+- context size (last input_tokens observed in the journal, max, % of threshold)
+- tokens consumed and estimated cost per session (/1M token prices of the
+  resolved model)
+- global totals
 
-Sources :
-- ~/.vibe/config.toml (tomllib) : auto_compact_threshold global, [[models]] (prix)
-- ~/.vibe/experiment_eval_cache.json : defaults serveur (routing model, extra models,
-  auto_compact_threshold / max_context_length par modèle) — fallback si l'entrée
-  locale est incomplète
-- logs/session/unified/*/meta.json + session_*/meta.json : sessions, config, stats
-- logs/session/unified/*/journal/*.jsonl : usage par appel LLM (payload...usage)
-- logs/session/active/*.lock.json : sessions vivantes (locks)
+Sources:
+- ~/.vibe/config.toml (tomllib): global auto_compact_threshold, [[models]] (prices)
+- ~/.vibe/experiment_eval_cache.json: server defaults (routing model, extra models,
+  auto_compact_threshold / max_context_length per model) -- fallback when the
+  local entry is incomplete
+- logs/session/unified/*/meta.json + session_*/meta.json: sessions, config, stats
+- logs/session/unified/*/journal/*.jsonl: usage per LLM call (payload...usage)
+- logs/session/active/*.lock.json: live sessions (locks)
 
-Usage :
-    python3 tools/dashboard.py                          # snapshot terminal
-    python3 tools/dashboard.py --watch 5                # rafraîchit toutes les 5 s
-    python3 tools/dashboard.py --project cpm            # filtre cwd
+Usage:
+    python3 tools/dashboard.py                          # terminal snapshot
+    python3 tools/dashboard.py --watch 5                # refreshes every 5 s
+    python3 tools/dashboard.py --project cpm            # cwd filter
     python3 tools/dashboard.py --html reports/dashboard.html --json reports/dashboard.json
-    python3 tools/dashboard.py --watch 5 --html reports/dashboard.html   # HTML auto-refresh (meta refresh) + terminal
+    python3 tools/dashboard.py --watch 5 --html reports/dashboard.html   # auto-refresh HTML (meta refresh) + terminal
 
-Ne lit jamais ~/.vibe/.env et n'affiche aucune clé.
+Never reads ~/.vibe/.env and does not display any key.
 """
 
 import argparse
@@ -42,11 +43,11 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 USAGE_KEYS = ("input_tokens", "output_tokens", "cached_input_tokens", "reasoning_tokens", "total_tokens")
-ACTIVE_WINDOW_S = 300  # une session est "vivante" si activité < 5 min
+ACTIVE_WINDOW_S = 300  # a session is "live" if its last activity is < 5 min ago
 
 
 def parse_iso(s: str) -> datetime | None:
-    """Convertit une chaîne ISO 8601 en datetime, None si illisible."""
+    """Convert an ISO 8601 string to a datetime, None if unreadable."""
     try:
         return datetime.fromisoformat(s)
     except Exception:
@@ -54,7 +55,7 @@ def parse_iso(s: str) -> datetime | None:
 
 
 def load_config(vibe_home: Path) -> tuple[Any, dict[str, Any]]:
-    """config.toml -> (global_threshold, models_by_alias). Ne touche pas aux clés API."""
+    """config.toml -> (global_threshold, models_by_alias). Never touches API keys."""
     threshold: Any = None
     models: dict[str, Any] = {}
     p = vibe_home / "config.toml"
@@ -66,12 +67,12 @@ def load_config(vibe_home: Path) -> tuple[Any, dict[str, Any]]:
                 if isinstance(mo, dict) and mo.get("alias"):
                     models[mo["alias"]] = mo
         except Exception:
-            logger.debug("config.toml illisible: %s", p, exc_info=True)
+            logger.debug("unreadable config.toml: %s", p, exc_info=True)
     return threshold, models
 
 
 def load_server_defaults(vibe_home: Path) -> dict[str, Any]:
-    """experiment_eval_cache.json -> model configs poussés par le serveur (par alias)."""
+    """experiment_eval_cache.json -> model configs pushed by the server (per alias)."""
     out: dict[str, Any] = {}
     p = vibe_home / "experiment_eval_cache.json"
     if not p.exists():
@@ -99,7 +100,7 @@ def load_server_defaults(vibe_home: Path) -> dict[str, Any]:
 def resolve_model(
     alias: str, local_models: dict[str, Any], server_models: dict[str, Any], global_threshold: int | None
 ) -> dict[str, Any]:
-    """Résout un alias -> dict(name, prices, threshold, source)."""
+    """Resolve an alias -> dict(name, prices, threshold, source)."""
     src = None
     mo = local_models.get(alias)
     if mo:
@@ -119,12 +120,12 @@ def resolve_model(
         "cached_input_price": mo.get("cached_input_price") or mo.get("cached_price"),
         "auto_compact_threshold": thr,
         "max_context_length": mo.get("max_context_length"),
-        "source": src or "alias-brut",
+        "source": src or "raw-alias",
     }
 
 
 def find_usage(obj: object, found: dict[str, float]) -> None:
-    """Extrait récursivement les compteurs d'usage d'un objet JSON (journal)."""
+    """Recursively extracts usage counters from a JSON object (journal)."""
     if isinstance(obj, dict):
         for k, v in obj.items():
             if k in USAGE_KEYS and isinstance(v, (int, float)):
@@ -137,9 +138,9 @@ def find_usage(obj: object, found: dict[str, float]) -> None:
 
 
 def journal_stats(journal_dir: Path) -> dict[str, Any]:
-    """Agrège l'usage LLM d'un journal unified.
+    """Aggregate LLM usage from a unified journal.
 
-    Retourne aussi le dernier input_tokens (= taille de contexte courante) et le max observé.
+    Also returns the last input_tokens (current context size) and the max observed.
     """
     agg: dict[str, float] = dict.fromkeys(USAGE_KEYS, 0.0)
     calls = 0
@@ -154,7 +155,7 @@ def journal_stats(journal_dir: Path) -> dict[str, Any]:
             try:
                 obj = json.loads(line)
             except Exception:
-                logger.debug("ligne de journal illisible dans %s", jf, exc_info=True)
+                logger.debug("unreadable journal line in %s", jf, exc_info=True)
                 continue
             f: dict[str, float] = {}
             find_usage(obj.get("payload", obj), f)
@@ -169,7 +170,7 @@ def journal_stats(journal_dir: Path) -> dict[str, Any]:
 
 
 def est_cost(usage: dict[str, float], model: dict[str, Any]) -> float | None:
-    """Estime le coût USD d'un usage à partir des prix du modèle ; None si prix inconnus."""
+    """Estimates the USD cost of a usage from the model prices; None if prices are unknown."""
     ip, op, cp = model["input_price"], model["output_price"], model["cached_input_price"]
     if ip is None or op is None:
         return None
@@ -182,19 +183,19 @@ def est_cost(usage: dict[str, float], model: dict[str, Any]) -> float | None:
 
 
 def collect(vibe_home: Path, project: str | None = None) -> tuple[list[dict[str, Any]], int | None]:
-    """Récupère les sessions (métas, journaux, locks) et résout le modèle de chacune."""
+    """Collect sessions (metadata, journals, locks) and resolve each session's model."""
     session_root = vibe_home / "logs" / "session"
     global_threshold, local_models = load_config(vibe_home)
     server_models = load_server_defaults(vibe_home)
 
-    # locks = sessions vivantes
+    # locks = live sessions
     active_locks: dict[str, Any] = {}
     for lf in (session_root / "active").glob("*.lock.json"):
         try:
             d = json.loads(lf.read_text())
             active_locks[d.get("session_id")] = d.get("acquired_at")
         except Exception:
-            logger.debug("lock illisible: %s", lf, exc_info=True)
+            logger.debug("unreadable lock: %s", lf, exc_info=True)
 
     by_id: dict[str, Any] = {}
     for meta_path in sorted(session_root.glob("session_*/meta.json")) + sorted(
@@ -203,7 +204,7 @@ def collect(vibe_home: Path, project: str | None = None) -> tuple[list[dict[str,
         try:
             meta = json.loads(meta_path.read_text())
         except Exception:
-            logger.debug("meta illisible: %s", meta_path, exc_info=True)
+            logger.debug("unreadable meta: %s", meta_path, exc_info=True)
             continue
         sid = meta.get("session_id") or meta_path.parent.name
         cur = by_id.get(sid)
@@ -268,7 +269,7 @@ def collect(vibe_home: Path, project: str | None = None) -> tuple[list[dict[str,
 
 
 def fmt_dur(s: float | None) -> str:
-    """Convertit une durée en secondes en texte (ex. 1h05m03s, 5m03s)."""
+    """Convert a duration in seconds to text (e.g. 1h05m03s, 5m03s)."""
     if s is None:
         return "-"
     m, sec = divmod(int(s), 60)
@@ -277,7 +278,7 @@ def fmt_dur(s: float | None) -> str:
 
 
 def fmt_ts(ts: str | None) -> str:
-    """Convertit un timestamp ISO en dd/mm HH:MM:SS (tronqué à 19 car. sinon)."""
+    """Convert an ISO timestamp to dd/mm HH:MM:SS (otherwise truncated to 19 chars)."""
     if not ts:
         return "-"
     d = parse_iso(ts)
@@ -285,30 +286,30 @@ def fmt_ts(ts: str | None) -> str:
 
 
 def bar(frac: float, width: int = 18) -> str:
-    """Barre de progression ASCII de `width` caractères pour une fraction entre 0 et 1."""
+    """ASCII progress bar of `width` characters for a fraction between 0 and 1."""
     frac = max(0.0, min(1.0, frac))
     n = int(frac * width)
     return "#" * n + "-" * (width - n)
 
 
 def render_text(sessions: list[dict[str, Any]], global_threshold: int | None, project: str | None) -> str:
-    """Rendu terminal du dashboard (texte)."""
+    """Terminal rendering of the dashboard (text)."""
     now = datetime.now(UTC)
     out: list[str] = []
     out.append(
         f"VIBE USAGE DASHBOARD — {now.strftime('%Y-%m-%d %H:%M:%S')} UTC"
-        + (f" — filtre cwd: {project}" if project else "")
+        + (f" -- cwd filter: {project}" if project else "")
     )
     live = [s for s in sessions if s["live"]]
     out.append(
-        f"sessions: {len(sessions)} total, {len(live)} active(s) maintenant (parallèles)"
-        f" — seuil auto-compact global: {global_threshold}"
+        f"sessions: {len(sessions)} total, {len(live)} active now (in parallel)"
+        f" -- global auto-compact threshold: {global_threshold}"
     )
     out.append("")
     if live:
-        out.append("== ACTIVES MAINTENANT ==")
+        out.append("== ACTIVE NOW ==")
         out.append(
-            f"{'session':10} {'depuis':17} {'durée':10} {'modèle':28} {'contexte':>10} {'seuil':>8} {'util':>5}  cwd"
+            f"{'session':10} {'since':17} {'duration':10} {'model':28} {'context':>10} {'thresh':>8} {'used':>5}  cwd"
         )
         for s in live:
             m = s["model"]
@@ -322,12 +323,12 @@ def render_text(sessions: list[dict[str, Any]], global_threshold: int | None, pr
         out.append("")
     out.append("== SESSIONS ==")
     out.append(
-        f"{'session':10} {'début':17} {'durée':10} {'état':7} {'modèle (alias -> name)':34} "
-        f"{'ctx now':>9} {'ctx max':>9} {'appels':>6} {'total tok':>11} {'coût est.':>9}  cwd"
+        f"{'session':10} {'start':17} {'duration':10} {'state':7} {'model (alias -> name)':34} "
+        f"{'ctx now':>9} {'ctx max':>9} {'calls':>6} {'total tok':>11} {'est. cost':>9}  cwd"
     )
     for s in sessions:
         m = s["model"]
-        state = "LIVE" if s["live"] else "fin"
+        state = "LIVE" if s["live"] else "ended"
         cost = (
             f"${s['cost_est']:.4f}"
             if s["cost_est"] is not None
@@ -344,7 +345,7 @@ def render_text(sessions: list[dict[str, Any]], global_threshold: int | None, pr
     n_calls = sum(s["calls"] for s in sessions)
     out.append("")
     out.append(
-        f"TOTAUX: {len(sessions)} sessions, {n_calls} appels LLM, {tot_tok:,} tokens, coût estimé ${tot_cost:.4f}"
+        f"TOTALS: {len(sessions)} sessions, {n_calls} LLM calls, {tot_tok:,} tokens, estimated cost ${tot_cost:.4f}"
     )
     per_model: dict[str, dict[str, Any]] = {}
     for s in sessions:
@@ -354,9 +355,9 @@ def render_text(sessions: list[dict[str, Any]], global_threshold: int | None, pr
         a["cost"] += s["cost_est"] or 0
     if per_model:
         out.append("")
-        out.append("== PAR MODÈLE ==")
+        out.append("== PER MODEL ==")
         for name, a in sorted(per_model.items(), key=lambda kv: -kv[1]["tok"]):
-            out.append(f"  {name:32} appels={a['calls']:>4}  tokens={a['tok']:>11,}  coût=${a['cost']:.4f}")
+            out.append(f"  {name:32} calls={a['calls']:>4}  tokens={a['tok']:>11,}  cost=${a['cost']:.4f}")
     return "\n".join(out)
 
 
@@ -384,22 +385,22 @@ HTML_HEAD = (
 
 
 def render_html(sessions: list[dict[str, Any]], global_threshold: int | None, project: str | None) -> str:
-    """Rendu HTML statique du dashboard (auto-refresh via meta refresh)."""
+    """Render the dashboard as static HTML (auto-refresh via meta refresh)."""
     now = datetime.now(UTC)
     live = [s for s in sessions if s["live"]]
     h: list[str] = [
         HTML_HEAD,
         "<h1>Vibe usage dashboard — cpm-store</h1>",
-        f"<p class='dim'>généré le {now.strftime('%Y-%m-%d %H:%M:%S')} UTC"
-        + (f" — filtre cwd <code>{project}</code>" if project else "")
-        + f" — auto-refresh 5 s — {len(sessions)} sessions, <b>{len(live)} active(s) maintenant</b>"
-        f" — seuil auto-compact global {global_threshold}</p>",
+        f"<p class='dim'>generated at {now.strftime('%Y-%m-%d %H:%M:%S')} UTC"
+        + (f" -- cwd filter <code>{project}</code>" if project else "")
+        + f" -- auto-refresh 5 s -- {len(sessions)} sessions, <b>{len(live)} active now</b>"
+        f" -- global auto-compact threshold {global_threshold}</p>",
     ]
     if live:
         h.append(
-            "<h2>Actives maintenant (parallèles)</h2><table><tr><th class='l'>session</th><th class='l'>depuis</th>"
-            "<th>durée</th><th class='l'>modèle</th><th>contexte</th><th>seuil</th>"
-            "<th class='l'>utilisation</th><th class='l'>cwd</th></tr>"
+            "<h2>Active now (in parallel)</h2><table><tr><th class='l'>session</th><th class='l'>since</th>"
+            "<th>duration</th><th class='l'>model</th><th>context</th><th>threshold</th>"
+            "<th class='l'>usage</th><th class='l'>cwd</th></tr>"
         )
         for s in live:
             m = s["model"]
@@ -413,13 +414,13 @@ def render_html(sessions: list[dict[str, Any]], global_threshold: int | None, pr
             )
         h.append("</table>")
     h.append(
-        "<h2>Sessions</h2><table><tr><th class='l'>session</th><th class='l'>début</th><th>durée</th><th>état</th>"
-        "<th class='l'>modèle</th><th>ctx now</th><th>ctx max</th><th>appels</th><th>total tok</th>"
-        "<th>coût est.</th><th class='l'>cwd</th></tr>"
+        "<h2>Sessions</h2><table><tr><th class='l'>session</th><th class='l'>start</th><th>duration</th><th>state</th>"
+        "<th class='l'>model</th><th>ctx now</th><th>ctx max</th><th>calls</th><th>total tok</th>"
+        "<th>est. cost</th><th class='l'>cwd</th></tr>"
     )
     for s in sessions:
         m = s["model"]
-        state = "<span class='live'>LIVE</span>" if s["live"] else "fin"
+        state = "<span class='live'>LIVE</span>" if s["live"] else "ended"
         cost = (
             f"${s['cost_est']:.4f}"
             if s["cost_est"] is not None
@@ -437,10 +438,10 @@ def render_html(sessions: list[dict[str, Any]], global_threshold: int | None, pr
     tot_cost = sum(s["cost_est"] or 0 for s in sessions)
     n_calls = sum(s["calls"] for s in sessions)
     h.append(
-        f"<p class='foot'>TOTAUX : {len(sessions)} sessions · {n_calls} appels LLM · {tot_tok:,} tokens · "
-        f"coût estimé ${tot_cost:.4f}<br>"
-        "sources : ~/.vibe/logs/session (meta.json, journaux unified, locks active) + config.toml + "
-        "experiment_eval_cache.json — aucune clé API lue</p>"
+        f"<p class='foot'>TOTALS: {len(sessions)} sessions · {n_calls} LLM calls · {tot_tok:,} tokens · "
+        f"estimated cost ${tot_cost:.4f}<br>"
+        "sources: ~/.vibe/logs/session (meta.json, unified journals, active locks) + config.toml + "
+        "experiment_eval_cache.json -- no API key read</p>"
     )
     h.append("</body></html>")
     return "\n".join(h)
@@ -469,13 +470,13 @@ LIVE_PAGE = (
 """
     """<h1>Vibe usage dashboard — cpm-store</h1>
 """
-    """<div id="meta" class="dim">chargement…</div>
+    """<div id="meta" class="dim">loading…</div>
 """
-    """<h2>Actives maintenant (parallèles)</h2><div id="live"></div>
+    """<h2>Active now (in parallel)</h2><div id="live"></div>
 """
     """<h2>Sessions</h2><div id="sessions"></div>
 """
-    """<h2>Par modèle</h2><div id="models"></div>
+    """<h2>Per model</h2><div id="models"></div>
 """
     """<div id="totals" class="foot"></div>
 """
@@ -494,7 +495,7 @@ LIVE_PAGE = (
     """> ${(f*100).toFixed(1)}%`; };\n"""
     """const row = (s, live) => `<tr><td class="l">${s.short}</td><td class="l">${fmtTs(s.start)}</td><td>$"""
     """{fmtDur(s.elapsed_s)}</td>\n"""
-    """<td>${live?'<span class="live">LIVE</span>':'fin'}</td><td class="l">${esc(s.model.alias)} &rarr; ${"""
+    """<td>${live?'<span class="live">LIVE</span>':'ended'}</td><td class="l">${esc(s.model.alias)} &rarr; ${"""
     """esc(s.model.name)}</td>\n"""
     """<td>${s.ctx_now.toLocaleString()}</td><td>${s.ctx_max.toLocaleString()}</td><td>${(s.model.auto_comp"""
     """act_threshold ?? '-')}</td>\n"""
@@ -512,25 +513,25 @@ LIVE_PAGE = (
 """
     """  document.getElementById('meta').textContent =
 """
-    """    `généré le ${d.generated_at.slice(0,19).replace('T',' ')} UTC — refresh 2 s` +
+    """    `generated at ${d.generated_at.slice(0,19).replace('T',' ')} UTC -- refresh 2 s` +
 """
     """    (d.project ? ` — filtre cwd ${d.project}` : '') +
 """
-    """    ` — ${d.sessions.length} sessions, ${d.sessions.filter(s=>s.live).length} active(s) maintenant —"""
+    """    ` — ${d.sessions.length} sessions, ${d.sessions.filter(s=>s.live).length} active now --"""
     """ seuil auto-compact global ${d.global_threshold ?? '-'}`;\n"""
     """  const live = d.sessions.filter(s=>s.live);
 """
     """  document.getElementById('live').innerHTML = live.length ? '<table><tr><th class="l">session</th><t"""
-    """h class="l">depuis</th><th>durée</th><th class="l">modèle</th><th>ctx now</th><th>seuil</th><th clas"""
+    """h class="l">since</th><th>duration</th><th class="l">model</th><th>ctx now</th><th>thresh</th><th clas"""
     """s="l">utilisation</th><th class="l">cwd</th></tr>'\n"""
     """    + live.map(s=>`<tr><td class="l live">${s.short}</td><td class="l">${fmtTs(s.start)}</td><td>${f"""
     """mtDur(s.elapsed_s)}</td><td class="l">${esc(s.model.alias)} &rarr; ${esc(s.model.name)}</td><td>${s."""
     """ctx_now.toLocaleString()}</td><td>${s.model.auto_compact_threshold ?? '-'}</td><td class="l">${bar(s"""
     """.ctx_now, s.model.auto_compact_threshold)}</td><td class="l">${esc(s.cwd)}</td></tr>`).join('') + '<"""
-    """/table>' : '<p class="dim">aucune session active</p>';\n"""
+    """/table>' : '<p class="dim">no active session</p>';\n"""
     """  document.getElementById('sessions').innerHTML = '<table><tr><th class="l">session</th><th class="l"""
-    """">début</th><th>durée</th><th>état</th><th class="l">modèle (alias → name)</th><th>ctx now</th><th>c"""
-    """tx max</th><th>seuil</th><th class="l">barre</th><th>appels</th><th>total tok</th><th>coût est.</th>"""
+    """">start</th><th>duration</th><th>state</th><th class="l">model (alias → name)</th><th>ctx now</th><th>c"""
+    """tx max</th><th>thresh</th><th class="l">bar</th><th>calls</th><th>total tok</th><th>est. cost</th>"""
     """<th class="l">cwd</th></tr>'\n"""
     """    + d.sessions.map(s=>row(s, s.live)).join('') + '</table>';
 """
@@ -538,16 +539,16 @@ LIVE_PAGE = (
 """
     """  for (const s of d.sessions){ const a = pm[s.model.name] = pm[s.model.name] || {calls:0, tok:0, cos"""
     """t:0}; a.calls+=s.calls; a.tok+=s.usage.total_tokens; a.cost+=s.cost_est||0; }\n"""
-    """  document.getElementById('models').innerHTML = '<table><tr><th class="l">modèle</th><th>appels</th>"""
-    """<th>tokens</th><th>coût est.</th></tr>'\n"""
+    """  document.getElementById('models').innerHTML = '<table><tr><th class="l">model</th><th>calls</th>"""
+    """<th>tokens</th><th>est. cost</th></tr>'\n"""
     """    + Object.entries(pm).sort((a,b)=>b[1].tok-a[1].tok).map(([n,a])=>`<tr><td class="l">${esc(n)}</t"""
     """d><td>${a.calls}</td><td>${a.tok.toLocaleString()}</td><td>$${a.cost.toFixed(4)}</td></tr>`).join(''"""
     """) + '</table>';\n"""
     """  const tt = d.sessions.reduce((a,s)=>a+s.usage.total_tokens,0), tc = d.sessions.reduce((a,s)=>a+(s."""
     """cost_est||0),0), nc = d.sessions.reduce((a,s)=>a+s.calls,0);\n"""
-    """  document.getElementById('totals').textContent = `TOTAUX : ${d.sessions.length} sessions · ${nc} ap"""
-    """pels LLM · ${tt.toLocaleString()} tokens · coût estimé $${tc.toFixed(4)} — sources ~/.vibe/logs/sess"""
-    """ion + config.toml + experiment_eval_cache.json (aucune clé API lue)`;\n"""
+    """  document.getElementById('totals').textContent = `TOTALS: ${d.sessions.length} sessions · ${nc} ap"""
+    """pels LLM · ${tt.toLocaleString()} tokens · estimated cost $${tc.toFixed(4)} -- sources ~/.vibe/logs/sess"""
+    """ion + config.toml + experiment_eval_cache.json (no API key read)`;\n"""
     """}
 """
     """refresh(); setInterval(refresh, 2000);
@@ -591,20 +592,20 @@ def serve(port: int, vibe_home: Path, project: str | None) -> None:
             pass
 
     srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)
-    print(f"dashboard web: http://127.0.0.1:{port}/  (Ctrl-C pour arrêter)", flush=True)
+    print(f"dashboard web: http://127.0.0.1:{port}/  (Ctrl-C to stop)", flush=True)
     with contextlib.suppress(KeyboardInterrupt):
         srv.serve_forever()
 
 
 def main() -> int:
-    """Point d'entrée CLI : snapshot terminal, --watch, --serve, --html/--json."""
+    """CLI entry point: terminal snapshot, --watch, --serve, --html/--json."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--vibe-home", default=str(Path.home() / ".vibe"))
     ap.add_argument("--project", default=None)
-    ap.add_argument("--watch", type=float, default=None, help="rafraîchit toutes les N secondes")
-    ap.add_argument("--serve", type=int, default=None, help="sert le dashboard web sur 127.0.0.1:PORT")
-    ap.add_argument("--html", default=None, help="écrit un dashboard HTML auto-refresh à ce chemin")
-    ap.add_argument("--json", default=None, help="écrit un snapshot JSON à ce chemin")
+    ap.add_argument("--watch", type=float, default=None, help="refreshes every N seconds")
+    ap.add_argument("--serve", type=int, default=None, help="serves the web dashboard on 127.0.0.1:PORT")
+    ap.add_argument("--html", default=None, help="writes an auto-refresh HTML dashboard to this path")
+    ap.add_argument("--json", default=None, help="writes a JSON snapshot to this path")
     args = ap.parse_args()
 
     vibe_home = Path(args.vibe_home)
@@ -614,7 +615,7 @@ def main() -> int:
         return 0
 
     def tick() -> list[dict[str, Any]]:
-        """Un rafraîchissement : collecte, affiche le texte, écrit html/json si demandé."""
+        """One refresh: collect, print the text, write html/json if requested."""
         sessions, thr = collect(vibe_home, args.project)
         text = render_text(sessions, thr, args.project)
         if args.watch:

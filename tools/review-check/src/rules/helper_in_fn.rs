@@ -1,5 +1,5 @@
-//! Règle `serde-helper-identity` : périmètre = toutes les fonctions ;
-//! violation si une struct est déclarée DANS le bloc (pattern Helper, quel que soit son nom).
+//! Rule `serde-helper-identity`: scope = all functions;
+//! violation if a struct is declared INSIDE the block (Helper pattern, whatever its name).
 
 use super::{fns, impl_methods, line_of, Candidate, Rule};
 use syn::{Item, Stmt};
@@ -12,7 +12,7 @@ impl Rule for HelperInFn {
     }
 
     fn candidates(&self, ast: &syn::File, _src: &str) -> Vec<Candidate> {
-        // fonctions libres ET méthodes d'impl (un Helper serde vit souvent dans
+        // free functions AND impl methods (a serde Helper often lives inside
         // `impl Deserialize for X { fn deserialize(...) { struct Helper ... } }`)
         fns(ast)
             .map(|f: &syn::ItemFn| (line_of(&f.sig.ident), &*f.block))
