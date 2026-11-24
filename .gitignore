@@ -107,3 +107,9 @@ credentials.json
 .claude/.last-stop-marker
 .claude/worktrees/
 .serena/
+
+# dockyard:keep:start vibe-local-state
+# Vibe CLI session worktrees (vibe:worktree skill) - local state, never committed.
+# Also covered locally by .git/info/exclude; this entry makes it durable across clones.
+.vibe/worktrees/
+# dockyard:keep:end vibe-local-state
