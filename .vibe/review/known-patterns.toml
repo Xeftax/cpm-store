@@ -281,3 +281,165 @@ exclude_files = []
 occurrences = [
   { file = "crates/cpm-core/src/model/{events,folder,imdn,object,search,subscription,sync}.rs", lines = "43 containers migrated to #[rest_json] (acronyms(\"URL\") for resourceURL/notifyURL, rename(...) for wire \"type\" and the RequestErrorKind exception kinds)", since = "branch feat/rest-json-policy" },
 ]
+
+[[pattern]]
+id = "match-arms-are-dispatch"
+rule = "A match used as a dispatch table has short, uniform arms: a long arm hides an algorithm that belongs in a named helper. Violation: an arm body whose token count exceeds both 15 tokens and 3x the median arm size of the same match."
+applies_to = "every match expression in the repo"
+when_not_applicable = "arms already short and uniform; a single legitimately larger arm below the threshold"
+scope = "**/*.rs"
+message = "oversized match arm -> move the logic into a named helper; arms are dispatch only. Textbook case: the CamelCase arm of apply_plain in rest-json case.rs."
+bad_example = """
+match self {
+    Self::CamelCase => { /* 15 lines of inline rename logic */ }
+    _ => one_liner(),
+}
+"""
+good_example = """
+match self {
+    Self::CamelCase => camel_from_words(&split_underscore(id), kind),
+    _ => one_liner(),
+}
+"""
+severity = "warning"
+exclude_files = []
+occurrences = [
+  { file = "crates/rest-json/src/case.rs", lines = "53-67 (CamelCase arm of apply_plain, pre-refactor)", since = "review session on rest-json, branch vibe/sess-17c1846e; fixed in the staged refactor" },
+]
+
+[[pattern]]
+id = "match-not-if-else-on-enum"
+rule = "Never branch on enum equality with if/else when a match expresses it: `if self == Self::PascalCase { .. } else { .. }` is a disguised switch. Use `match self` (possibly after a guard)."
+applies_to = "every if expression whose condition is `==` against an enum variant path and that has an else branch"
+when_not_applicable = "plain boolean conditions (covered by no-bool-mode-params at the signature level); if/else on non-enum values; early-return guards without an else branch (e.g. `if kind == IdentKind::Variant { return ..; }`)"
+scope = "**/*.rs"
+message = "if/else on enum equality -> use match self. Seen mid-refactor in apply_acronyms (rest-json case.rs)."
+severity = "warning"
+exclude_files = []
+occurrences = [
+  { file = "crates/rest-json/src/case.rs", lines = "apply_acronyms, intermediate version of branch vibe/sess-17c1846e (if self == Self::PascalCase .. else ..)", since = "review session on rest-json, branch vibe/sess-17c1846e; replaced by a match" },
+]
+
+[[pattern]]
+id = "enum-declaration-order"
+rule = "For one enum, the variant declaration order is the single canonical order: parse tables (string -> variant), match arms (Self::X =>) and name tables (variant -> string) all follow it. A match whose Self:: arms appear in a different order is a violation."
+applies_to = "every enum + its associated match/parse tables in the same file"
+when_not_applicable = "partial matches ending in a wildcard arm; enums whose variants have no natural order (flag enums)"
+scope = "**/*.rs"
+message = "match arms / parse table do not follow the enum declaration order -> reorder to match the enum."
+severity = "warning"
+exclude_files = []
+occurrences = [
+  { file = "crates/rest-json/src/case.rs", lines = "apply_plain arms vs parse table, intermediate version of branch vibe/sess-17c1846e (Pascal/Camel moved first)", since = "review session on rest-json, branch vibe/sess-17c1846e; arms reordered to enum order" },
+]
+
+[[pattern]]
+id = "no-bool-mode-params"
+rule = "A bool parameter is a call-site trap (`f(x, true)` reads as nothing): a bool that selects between two behaviors must be a small named enum. Violation: a free function or impl method with a parameter of type bool. #[cfg(test)] modules are skipped."
+applies_to = "every fn signature in crates/** and tools/** (non-test code)"
+when_not_applicable = "cfg(test) modules; bool fields of structs (not parameters)"
+scope = "**/*.rs"
+message = "bool mode parameter -> introduce a named enum (case.rs: is_variant: bool -> IdentKind)."
+bad_example = """
+pub fn apply_plain(self, id: &str, is_variant: bool) -> String
+"""
+good_example = """
+pub fn apply_plain(self, id: &str, kind: IdentKind) -> String
+"""
+severity = "warning"
+exclude_files = []
+occurrences = [
+  { file = "crates/rest-json/src/case.rs", lines = "48, 78 (is_variant: bool, pre-refactor)", since = "review session on rest-json, branch vibe/sess-17c1846e; fixed via IdentKind" },
+  { file = "crates/rest-json/src/lib.rs", lines = "227, 238-239, 247 (pre-refactor)", since = "review session on rest-json, branch vibe/sess-17c1846e; fixed via IdentKind" },
+]
+
+[[pattern]]
+id = "no-cross-fn-arm-duplication"
+rule = "When two functions match on the same scrutinee and share >= 2 identical (token-normalized) arm bodies, the shared logic belongs in one helper over the preprocessed input — not in duplicated arms. Extends duplicate-fn-bodies (whole-body) to arm level."
+applies_to = "every pair of match expressions on the same scrutinee within one file"
+when_not_applicable = "arms duplicated across files (out of scope); single shared arm"
+scope = "**/*.rs"
+message = "duplicated match arms across functions -> extract a shared helper (case.rs: pascal_from_words / camel_from_words shared by apply_plain and apply_acronyms)."
+severity = "warning"
+exclude_files = []
+occurrences = [
+  { file = "crates/rest-json/src/case.rs", lines = "52-67 and 93-108 (PascalCase/CamelCase arms duplicated between apply_plain and apply_acronyms, pre-refactor)", since = "review session on rest-json, branch vibe/sess-17c1846e; fixed via shared word core" },
+]
+
+[[pattern]]
+id = "total-vs-domain-contract"
+rule = "A public function taking &str must document two separate things: (a) totality — it never panics on any input (pinned by a test with edge inputs: empty, separators only, non-ASCII); (b) the input domain on which a stronger guarantee holds (e.g. parity with an external implementation) — the only domain the caller passes. AST part: pub fn with a &str parameter and no #[doc] -> violation."
+applies_to = "every pub fn with a &str parameter"
+when_not_applicable = "private helpers whose contract is obvious from the single caller; fns already documenting both parts"
+scope = "**/*.rs"
+message = "pub fn taking &str without doc -> document totality for any input AND the domain of stronger guarantees."
+severity = "warning"
+exclude_files = []
+occurrences = [
+  { file = "crates/rest-json/src/case.rs", lines = "48, 78 (apply_plain / apply_acronyms, pre-refactor, undocumented contract)", since = "review session on rest-json, branch vibe/sess-17c1846e; contract documented + totality test added" },
+]
+
+[[pattern]]
+id = "vendored-byte-exact"
+rule = "A vendored algorithm must be byte-exact with the pinned upstream version on the whole real input domain, including ASCII-only case mapping (serde uses to_ascii_*): AST part — in a file whose module doc mentions vendored/serde, any .to_lowercase()/.to_uppercase() (Unicode) call -> violation, use to_ascii_*. Any deliberate divergence lives in a separate named helper with a doc comment saying why."
+applies_to = "every file vendored from an external crate (module doc mentions vendored/mirrors)"
+when_not_applicable = "files that are not vendored; deliberate divergences isolated in their own named helper (e.g. split_words vs to_snake in case.rs)"
+scope = "**/*.rs"
+message = "Unicode case mapping in vendored code -> use to_ascii_* like the upstream (serde_derive 1.0.229)."
+severity = "warning"
+exclude_files = []
+occurrences = [
+  { file = "crates/rest-json/src/case.rs", lines = "50, 51, 69, 71, 138, 148, 156 (to_lowercase/to_uppercase, pre-refactor)", since = "review session on rest-json, branch vibe/sess-17c1846e; switched to to_ascii_*" },
+]
+
+[[pattern]]
+id = "vendored-module-annotated"
+rule = "A module vendored from an external crate keeps the upstream file/module name (case.rs mirrors serde_derive/src/internals/case.rs) and its module doc cites the upstream source path + the exact pinned version. Rationale: proc-macro crates cannot export internals, and external case crates (heck, convert_case) are not byte-exact with serde. Doc-only contract: the checker skips it (no AST rule with this id); detection is the doc scan of added lines."
+applies_to = "every module whose doc says it mirrors/vendors an external crate"
+when_not_applicable = "original code; wrappers around external crates (no vendored algorithm)"
+scope = "**/*"  # doc-only entry, the checker skips it (no AST rule with this id)
+message = "n/a — doc-only contract; enforced by review reading / doc scan, not by review-check"
+severity = "warning"
+exclude_files = []
+occurrences = [
+  { file = "crates/rest-json/src/case.rs", lines = "1-9 module doc (pre-refactor: no version pinned)", since = "review session on rest-json, branch vibe/sess-17c1846e; version serde_derive 1.0.229 pinned" },
+]
+
+[[pattern]]
+id = "parity-claim-pinned"
+rule = "A doc comment claiming byte-exact/parity/equivalence with an external crate must name the exact upstream version AND the exact input domain of the guarantee, verified by diffing against the upstream source (e.g. ~/.cargo/registry/src/*/serde_derive-1.0.229). The pre-refactor claim \"byte-exact with serde (same algorithms)\" was false until verified. Doc-only contract: the checker skips it (no AST rule with this id)."
+applies_to = "every doc comment claiming parity with an external crate"
+when_not_applicable = "claims scoped to the repo's own code"
+scope = "**/*"  # doc-only entry, the checker skips it (no AST rule with this id)
+message = "n/a — doc-only contract; enforced by review reading, not by review-check"
+severity = "warning"
+exclude_files = []
+occurrences = [
+  { file = "crates/rest-json/src/case.rs", lines = "8-9 module doc (pre-refactor overclaim)", since = "review session on rest-json, branch vibe/sess-17c1846e; claim corrected to the ident domain" },
+]
+
+[[pattern]]
+id = "no-usage-based-narrowing"
+rule = "Do not narrow a general semantic because no current call site exercises it (\"nothing in the workspace uses rename_all = PascalCase, so acronyms only apply to camelCase\" was wrong and reverted). Narrow only for a spec/domain reason, and then as a loud compile error, never a silent no-op. Doc-only contract: the checker skips it (no AST rule with this id)."
+applies_to = "every semantic restriction of a public API"
+when_not_applicable = "restrictions backed by the spec or by an invariant, made explicit as compile errors"
+scope = "**/*"  # doc-only entry, the checker skips it (no AST rule with this id)
+message = "n/a — doc-only contract; enforced by review reading, not by review-check"
+severity = "warning"
+exclude_files = []
+occurrences = [
+  { file = "crates/rest-json/src/case.rs", lines = "apply_acronyms restricted to camelCase-only, intermediate version of branch vibe/sess-17c1846e", since = "review session on rest-json, branch vibe/sess-17c1846e; restriction reverted" },
+]
+
+[[pattern]]
+id = "member-order-consistent"
+rule = "The order of appearance of objects is always the same: struct fields, enum variants and fn arguments follow one documented order per domain — for the REST/JSON wire models, the spec element order (docs/specs), which is also the golden-fixture key order. Doc-only contract: the checker skips it (no AST rule with this id); the reference order is domain-defined, not derivable generically."
+applies_to = "every struct/enum declaration in crates/**"
+when_not_applicable = "internal helper structs with no wire meaning (any order)"
+scope = "**/*"  # doc-only entry, the checker skips it (no AST rule with this id)
+message = "n/a — doc-only contract; enforced by review reading, not by review-check"
+severity = "warning"
+exclude_files = []
+occurrences = [
+  { file = "crates/rest-json/src/case.rs", lines = "enum RenameRule vs apply_plain arm order mismatch, intermediate version of branch vibe/sess-17c1846e", since = "review session on rest-json, branch vibe/sess-17c1846e; see also enum-declaration-order for the intra-enum part" },
+]
