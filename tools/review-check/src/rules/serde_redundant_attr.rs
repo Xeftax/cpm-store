@@ -125,7 +125,9 @@ impl RenameRule {
             Self::CamelCase => {
                 let mut it = mapped.iter();
                 match it.next() {
-                    Some(first) => first.clone() + &it.map(|w: &String| capitalize(w)).collect::<String>(),
+                    Some(first) => {
+                        first.clone() + &it.map(|w: &String| capitalize(w)).collect::<String>()
+                    }
                     None => String::new(),
                 }
             }
@@ -158,7 +160,10 @@ fn to_snake(id: &str) -> String {
     for (i, &c) in chars.iter().enumerate() {
         if c.is_uppercase() && i > 0 {
             let prev = chars[i - 1];
-            let next_lower = chars.get(i + 1).map(|n: &char| n.is_lowercase()).unwrap_or(false);
+            let next_lower = chars
+                .get(i + 1)
+                .map(|n: &char| n.is_lowercase())
+                .unwrap_or(false);
             if prev.is_lowercase() || prev.is_ascii_digit() || (prev.is_uppercase() && next_lower) {
                 out.push('_');
             }
@@ -188,7 +193,9 @@ struct FieldAttrs {
 }
 
 fn serde_attrs(attrs: &[Attribute]) -> impl Iterator<Item = &Attribute> {
-    attrs.iter().filter(|a: &&Attribute| a.path().is_ident("serde"))
+    attrs
+        .iter()
+        .filter(|a: &&Attribute| a.path().is_ident("serde"))
 }
 
 fn parse_container(attr: &Attribute) -> ContainerAttrs {
@@ -263,7 +270,10 @@ fn parse_rest_json(attr: &Attribute) -> ContainerAttrs {
                     let key: syn::Ident = input.parse()?;
                     let _: syn::Token![=] = input.parse()?;
                     let lit: LitStr = input.parse()?;
-                    Ok((key.to_string().trim_start_matches("r#").to_string(), lit.value()))
+                    Ok((
+                        key.to_string().trim_start_matches("r#").to_string(),
+                        lit.value(),
+                    ))
                 },
                 syn::Token![,],
             )?;
@@ -289,14 +299,20 @@ fn container_attrs(attrs: &[Attribute]) -> ContainerAttrs {
     let mut acc = ContainerAttrs::default();
     // Manual #[serde(...)] first: an explicit rename_all there wins over the
     // rest_json default (camelCase).
-    for attr in attrs.iter().filter(|a: &&Attribute| a.path().is_ident("serde")) {
+    for attr in attrs
+        .iter()
+        .filter(|a: &&Attribute| a.path().is_ident("serde"))
+    {
         let parsed = parse_container(attr);
         if acc.rename_all.is_none() {
             acc.rename_all = parsed.rename_all;
         }
         acc.default |= parsed.default;
     }
-    for attr in attrs.iter().filter(|a: &&Attribute| a.path().is_ident("rest_json")) {
+    for attr in attrs
+        .iter()
+        .filter(|a: &&Attribute| a.path().is_ident("rest_json"))
+    {
         let parsed = parse_rest_json(attr);
         if acc.rename_all.is_none() {
             acc.rename_all = parsed.rename_all;
@@ -400,7 +416,14 @@ impl Rule for SerdeRedundantAttr {
         for s in structs(ast) {
             let cont = container_attrs(&s.attrs);
             for (i, field) in s.fields.iter().enumerate() {
-                check_member(&mut out, &cont, &field.attrs, &field_ident(field, i), false, src);
+                check_member(
+                    &mut out,
+                    &cont,
+                    &field.attrs,
+                    &field_ident(field, i),
+                    false,
+                    src,
+                );
             }
         }
         for e in enums(ast) {
@@ -409,7 +432,14 @@ impl Rule for SerdeRedundantAttr {
                 check_member(&mut out, &cont, &v.attrs, &v.ident.to_string(), true, src);
                 let variant: &Variant = v;
                 for (i, field) in variant.fields.iter().enumerate() {
-                    check_member(&mut out, &cont, &field.attrs, &field_ident(field, i), false, src);
+                    check_member(
+                        &mut out,
+                        &cont,
+                        &field.attrs,
+                        &field_ident(field, i),
+                        false,
+                        src,
+                    );
                 }
             }
         }

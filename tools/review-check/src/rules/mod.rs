@@ -5,13 +5,20 @@
 pub mod closure_params_typed;
 pub mod delegate_same_name;
 pub mod duplicate_fn_bodies;
+pub mod enum_declaration_order;
 pub mod file_sections;
 pub mod helper_in_fn;
 pub mod main_rs_thin;
 pub mod manual_serde_impl;
+pub mod match_arms_are_dispatch;
+pub mod match_not_if_else_on_enum;
 pub mod newtype_pub;
+pub mod no_bool_mode_params;
+pub mod no_cross_fn_arm_duplication;
 pub mod serde_redundant_attr;
 pub mod thematic_clusters;
+pub mod total_vs_domain_contract;
+pub mod vendored_byte_exact;
 
 use syn::spanned::Spanned;
 use syn::{ImplItem, Item, ItemFn, ItemImpl, ItemStruct};
@@ -41,8 +48,15 @@ pub fn all() -> Vec<Box<dyn Rule>> {
         Box::new(delegate_same_name::DelegateSameName),
         Box::new(main_rs_thin::MainRsThin),
         Box::new(duplicate_fn_bodies::DuplicateFnBodies),
+        Box::new(enum_declaration_order::EnumDeclarationOrder),
         Box::new(file_sections::FileSections),
         Box::new(thematic_clusters::ThematicClusters),
+        Box::new(match_arms_are_dispatch::MatchArmsAreDispatch),
+        Box::new(match_not_if_else_on_enum::MatchNotIfElseOnEnum),
+        Box::new(no_bool_mode_params::NoBoolModeParams),
+        Box::new(no_cross_fn_arm_duplication::NoCrossFnArmDuplication),
+        Box::new(total_vs_domain_contract::TotalVsDomainContract),
+        Box::new(vendored_byte_exact::VendoredByteExact),
     ]
 }
 
