@@ -21,8 +21,11 @@ fn enum_eq_condition(cond: &Expr) -> bool {
                         let secs: Vec<_> = p.path.segments.iter().collect();
                         let first = secs[0].ident.to_string();
                         let second = secs[1].ident.to_string();
-                        if first.chars().next().is_some_and(|c| c.is_uppercase())
-                            && second.chars().next().is_some_and(|c| c.is_uppercase())
+                        if first.chars().next().is_some_and(|c: char| c.is_uppercase())
+                            && second
+                                .chars()
+                                .next()
+                                .is_some_and(|c: char| c.is_uppercase())
                         {
                             return true;
                         }

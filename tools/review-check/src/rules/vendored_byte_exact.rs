@@ -12,7 +12,7 @@ use syn::ExprMethodCall;
 pub struct VendoredByteExact;
 
 fn module_doc_claims_vendoring(ast: &syn::File) -> bool {
-    ast.attrs.iter().any(|a| {
+    ast.attrs.iter().any(|a: &syn::Attribute| {
         a.path().is_ident("doc") && {
             let text = a.to_token_stream().to_string().to_ascii_lowercase();
             text.contains("vendored") || text.contains("byte-exact") || text.contains("serde")

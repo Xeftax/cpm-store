@@ -20,7 +20,10 @@ fn enum_variant_order(ast: &syn::File) -> HashMap<String, Vec<String>> {
         if let syn::Item::Enum(e) = item {
             map.insert(
                 e.ident.to_string(),
-                e.variants.iter().map(|v| v.ident.to_string()).collect(),
+                e.variants
+                    .iter()
+                    .map(|v: &syn::Variant| v.ident.to_string())
+                    .collect(),
             );
         }
     }
@@ -74,7 +77,7 @@ impl<'ast> Visit<'ast> for Visitor {
             let order = &self.orders[&enum_name];
             let positions: Option<Vec<usize>> = variants
                 .iter()
-                .map(|v| order.iter().position(|d| d == v))
+                .map(|v: &String| order.iter().position(|d: &String| d == v))
                 .collect();
             if let Some(positions) = positions {
                 let mut sorted = positions.clone();

@@ -15,8 +15,10 @@ use syn::{FnArg, ItemFn, ItemMod};
 
 pub struct NoBoolModeParams;
 
+// ==== Helpers ====
+
 fn has_bool_param(inputs: &syn::punctuated::Punctuated<FnArg, syn::token::Comma>) -> bool {
-    inputs.iter().any(|arg| match arg {
+    inputs.iter().any(|arg: &FnArg| match arg {
         FnArg::Typed(p) => p.ty.to_token_stream().to_string() == "bool",
         FnArg::Receiver(_) => false,
     })

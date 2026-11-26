@@ -21,7 +21,7 @@ impl MatchArmsAreDispatch {
         let ts: proc_macro2::TokenStream = arm.body.to_token_stream();
         fn leaves(ts: proc_macro2::TokenStream) -> usize {
             ts.into_iter()
-                .map(|tt| match tt {
+                .map(|tt: proc_macro2::TokenTree| match tt {
                     proc_macro2::TokenTree::Group(g) => leaves(g.stream()),
                     _ => 1,
                 })

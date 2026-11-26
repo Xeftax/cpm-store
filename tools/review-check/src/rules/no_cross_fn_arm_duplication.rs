@@ -9,10 +9,12 @@ use quote::ToTokens;
 use std::collections::HashMap;
 use syn::visit::Visit;
 
+// ==== Arm normalization ====
+
 /// Normalize an expression: idents -> `I`, literals -> `L`, punctuation kept.
 fn normalize(ts: proc_macro2::TokenStream) -> String {
     ts.into_iter()
-        .map(|tt| match tt {
+        .map(|tt: proc_macro2::TokenTree| match tt {
             proc_macro2::TokenTree::Group(g) => format!("({})", normalize(g.stream())),
             proc_macro2::TokenTree::Ident(_) => "I".to_string(),
             proc_macro2::TokenTree::Literal(_) => "L".to_string(),
@@ -25,11 +27,15 @@ fn normalize(ts: proc_macro2::TokenStream) -> String {
 /// (normalized shape, enclosing function id, line of the arm)
 type Arm = (String, usize, usize);
 
+// ==== Visitor ====
+
 struct Visitor {
     out: Vec<Candidate>,
     arms: Vec<Arm>,
     fn_id: usize,
 }
+
+// ==== Visitor impl ====
 
 impl Visitor {
     fn enter_fn(&mut self) -> usize {
@@ -39,6 +45,7 @@ impl Visitor {
 }
 
 impl<'ast> Visit<'ast> for Visitor {
+    // review: ignore duplicate-fn-bodies — syn visitor boilerplate, identical across rule files
     fn visit_item_fn(&mut self, f: &'ast syn::ItemFn) {
         let outer = self.fn_id;
         self.fn_id = self.enter_fn();
@@ -46,6 +53,7 @@ impl<'ast> Visit<'ast> for Visitor {
         self.fn_id = outer;
     }
 
+    // review: ignore duplicate-fn-bodies — syn visitor boilerplate, identical across rule files
     fn visit_impl_item_fn(&mut self, m: &'ast syn::ImplItemFn) {
         let outer = self.fn_id;
         self.fn_id = self.enter_fn();
@@ -63,6 +71,8 @@ impl<'ast> Visit<'ast> for Visitor {
         syn::visit::visit_expr_match(self, m);
     }
 }
+
+// ==== Rule impl ====
 
 pub struct NoCrossFnArmDuplication;
 
